@@ -18,7 +18,7 @@ def set_openai_api_key():
     os.environ["OPENAI_API_KEY"] = api_key
 
 def get_random_temperature():
-    return random.uniform(0.5, 1.0)  # Adjust the range as needed
+    return random.uniform(0.0, 1.0)  # Adjust the range as needed
 
 def initialize_openai_llm(openai_model):
     temperature = get_random_temperature()
@@ -76,3 +76,52 @@ def evaluate_row(row, openai_llm, similar_json_behavior, pre_context, post_conte
         post_context=post_context,
         reference_generation=row['target_answer'],
     )
+
+import pandas as pd
+import json
+
+def clean_answer(answer):
+    try:
+        # Parse the JSON string and return the "answer" value
+        return json.loads(answer.strip())['answer']
+    except json.JSONDecodeError:
+        # If there's an error decoding the JSON, return the original string
+        return answer.strip()
+
+def aggregate_results(all_results):
+    # Initialize the list that will hold the aggregated data
+    aggregated_data = []
+
+    # Iterate over all result dictionaries
+    for result_raw in all_results:
+        result = result_raw.__dict__
+        # Extract necessary data from the current result object's dictionary
+        original_prompt = result['original_prompt']
+        target_answer = result['reference_generation']
+        perturbed_prompts = result['perturbed_prompts']
+        perturbed_generations = [clean_answer(ans) for ans in result['perturbed_generations']]
+        similarity_scores = [metric['Similarity Score'] for metric in result['metric']]
+
+        # Pair up perturbed prompts with their corresponding cleaned answers
+        perturbed_prompts_and_answers = list(zip(perturbed_prompts, perturbed_generations))
+        
+        # Determine the best and worst answers based on similarity scores
+        best_answer_index = similarity_scores.index(max(similarity_scores))
+        worst_answer_index = similarity_scores.index(min(similarity_scores))
+        best_answer = perturbed_prompts_and_answers[best_answer_index]
+        worst_answer = perturbed_prompts_and_answers[worst_answer_index]
+
+        # Append a dictionary for the current prompt to the aggregated data list
+        aggregated_data.append({
+            'original_prompt': original_prompt,
+            'target_answer': target_answer,
+            'best_answer_prompt': best_answer[0],
+            'best_answer': best_answer[1],
+            'worst_answer_prompt': worst_answer[0],
+            'worst_answer': worst_answer[1],
+        })
+
+    # Convert the aggregated data list to a DataFrame
+    return pd.DataFrame(aggregated_data)
+
+
