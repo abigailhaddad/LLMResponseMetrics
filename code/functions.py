@@ -8,10 +8,6 @@ from auditor.evaluation.evaluate import LLMEval
 from auditor.utils.similarity import compute_similarity
 from typing import List, Tuple, Dict
 import pandas as pd
-from pathlib import Path
-
-# Define the parameters up top
-
 
 def read_api_key(file_path: str) -> str:
     with open(file_path, 'r') as file:
@@ -24,15 +20,16 @@ def set_openai_api_key():
 def get_random_temperature():
     return random.uniform(0.5, 1.0)  # Adjust the range as needed
 
-def initialize_openai_llm():
+def initialize_openai_llm(openai_model):
     temperature = get_random_temperature()
-    return OpenAI(model_name=OPENAI_MODEL, temperature=temperature)
+    return OpenAI(model_name=openai_model, temperature=temperature)
 
-def initialize_similarity_model():
-    return SentenceTransformer(TRANSFORMERS_MODEL)
+def initialize_similarity_model(transformers_model):
+    return SentenceTransformer(transformers_model)
 
 class SimilarJSON(AbstractBehavior):
-    def __init__(self, similarity_model: SentenceTransformer, similarity_threshold: float = SIMILARITY_THRESHOLD):
+    def __init__(self, similarity_model: SentenceTransformer, similarity_threshold: float):
+        # Note: Do not use SIMILARITY_THRESHOLD directly here. Pass it as an argument when initializing.
         self.similarity_model = similarity_model
         self.similarity_threshold = similarity_threshold
         self.similarity_metric_key = 'Similarity Score'
@@ -68,28 +65,14 @@ class SimilarJSON(AbstractBehavior):
     def behavior_description(self) -> str:
         return self.descriptor
 
-def evaluate_row(row):
+def evaluate_row(row, openai_llm, similar_json_behavior, pre_context, post_context):
     json_eval = LLMEval(
         llm=openai_llm,
         expected_behavior=similar_json_behavior,
     )
     return json_eval.evaluate_prompt_correctness(
-        pre_context=PRE_CONTEXT,
+        pre_context=pre_context,
         prompt=row['prompt'],
-        post_context=POST_CONTEXT,
-        reference_generation=row['best_answer'],
+        post_context=post_context,
+        reference_generation=row['target_answer'],
     )
-    
-# Assuming the CSV file is in the 'data' folder at the same level as the 'keys' folder
-csv_file_path = Path('../data/prompt_best_answer_pairs.csv')
-# Read the CSV file into a DataFrame
-df = pd.read_csv(csv_file_path).head(2)
-# Initialize the models and set the API key
-set_openai_api_key()
-openai_llm = initialize_openai_llm()
-similarity_model = initialize_similarity_model()
-similar_json_behavior = SimilarJSON(similarity_model)
-
-df['test_result'] = df.apply(evaluate_row, axis=1)
-# Now the DataFrame 'df' contains a new column 'test_result' with the evaluation results
-print(df[['prompt', 'best_answer', 'test_result']])
