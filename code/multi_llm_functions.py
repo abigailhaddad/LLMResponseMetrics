@@ -81,7 +81,7 @@ def call_model(model: str, messages: list, provider: str, temperature: float):
 
 # Function to process each prompt in the CSV file
 def process_prompts(csv_file_path: str, models_dict: dict, num_perturbations: int = 5):
-    df = pd.read_csv(csv_file_path).head(1)
+    df = pd.read_csv(csv_file_path)
     results = []
 
     for model, provider in models_dict.items():

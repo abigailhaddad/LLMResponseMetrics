@@ -9,13 +9,11 @@ from auditor.utils.similarity import compute_similarity
 from typing import List, Tuple, Dict
 import pandas as pd
 
-def read_api_key(file_path: str) -> str:
+def read_api_key(config):
+    file_path = config["OPENAI_API_KEY_PATH"]
     with open(file_path, 'r') as file:
         return file.read().strip()
 
-def set_openai_api_key(config):
-    api_key = read_api_key(config["OPENAI_API_KEY_PATH"])
-    os.environ["OPENAI_API_KEY"] = api_key
 
 
 def get_random_temperature():
@@ -23,8 +21,8 @@ def get_random_temperature():
 
 def initialize_openai_llm(openai_model, config):
     temperature = get_random_temperature()
-    set_openai_api_key(config)
-    return OpenAI(model_name=openai_model, temperature=temperature)
+    api_key = read_api_key(config)
+    return OpenAI(model_name=openai_model, temperature=temperature, api_key = api_key)
 
 def initialize_similarity_model(config):
     return SentenceTransformer(config["TRANSFORMERS_MODEL"])
@@ -128,19 +126,20 @@ def aggregate_results(all_results):
     # Convert the aggregated data list to a DataFrame
     return pd.DataFrame(aggregated_data)
 
-def run_evaluation(prompts_df, config):
-    models = config["models"]
+def run_evaluation(prompts_df: pd.DataFrame, config: Dict) -> pd.DataFrame:
     all_aggregated_results = []
 
-    for model in models:
+    for model in config["models"]:
+        # Set the environment variable for the API key
+        # Apply the evaluation to each row
         prompts_df['result'] = prompts_df.apply(
             lambda row: evaluate_row(row, model, config), axis=1
         )
-
-        # Use 'result' and 'config' to aggregate results
-        aggregated_results = aggregate_results(prompts_df['result'])
-        aggregated_results['OPENAI_MODEL'] = model
-        all_aggregated_results.extend(aggregated_results.to_dict('records'))
-
-    return pd.DataFrame(all_aggregated_results)
-
+        
+        # Aggregate the results and add the model name
+        aggregated_results = aggregate_results(prompts_df['result'].tolist())
+        aggregated_results['model'] = model
+        all_aggregated_results.append(aggregated_results)
+    
+    # Concatenate all aggregated results into a single DataFrame
+    return pd.concat(all_aggregated_results, ignore_index=True)
