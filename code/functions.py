@@ -13,19 +13,21 @@ def read_api_key(file_path: str) -> str:
     with open(file_path, 'r') as file:
         return file.read().strip()
 
-def set_openai_api_key():
-    api_key = read_api_key("../keys/openai_key.txt")
+def set_openai_api_key(config):
+    api_key = read_api_key(config["OPENAI_API_KEY_PATH"])
     os.environ["OPENAI_API_KEY"] = api_key
+
 
 def get_random_temperature():
     return random.uniform(0.0, 1.0)  # Adjust the range as needed
 
-def initialize_openai_llm(openai_model):
+def initialize_openai_llm(openai_model, config):
     temperature = get_random_temperature()
+    set_openai_api_key(config)
     return OpenAI(model_name=openai_model, temperature=temperature)
 
-def initialize_similarity_model(transformers_model):
-    return SentenceTransformer(transformers_model)
+def initialize_similarity_model(config):
+    return SentenceTransformer(config["TRANSFORMERS_MODEL"])
 
 class SimilarJSON(AbstractBehavior):
     def __init__(self, similarity_model: SentenceTransformer, similarity_threshold: float):
@@ -65,20 +67,22 @@ class SimilarJSON(AbstractBehavior):
     def behavior_description(self) -> str:
         return self.descriptor
 
-def evaluate_row(row, openai_llm, similar_json_behavior, pre_context, post_context):
+def evaluate_row(row, openai_model, config):
+    openai_llm = initialize_openai_llm(openai_model, config)
+    similarity_model = initialize_similarity_model(config)
+    similar_json_behavior = SimilarJSON(similarity_model, config["SIMILARITY_THRESHOLD"])
+
     json_eval = LLMEval(
         llm=openai_llm,
         expected_behavior=similar_json_behavior,
     )
     return json_eval.evaluate_prompt_correctness(
-        pre_context=pre_context,
+        pre_context=config["PRE_CONTEXT"],
         prompt=row['prompt'],
-        post_context=post_context,
+        post_context=config["POST_CONTEXT"],
         reference_generation=row['target_answer'],
     )
 
-import pandas as pd
-import json
 
 def clean_answer(answer):
     try:
@@ -124,4 +128,19 @@ def aggregate_results(all_results):
     # Convert the aggregated data list to a DataFrame
     return pd.DataFrame(aggregated_data)
 
+def run_evaluation(prompts_df, config):
+    models = config["models"]
+    all_aggregated_results = []
+
+    for model in models:
+        prompts_df['result'] = prompts_df.apply(
+            lambda row: evaluate_row(row, model, config), axis=1
+        )
+
+        # Use 'result' and 'config' to aggregate results
+        aggregated_results = aggregate_results(prompts_df['result'])
+        aggregated_results['OPENAI_MODEL'] = model
+        all_aggregated_results.extend(aggregated_results.to_dict('records'))
+
+    return pd.DataFrame(all_aggregated_results)
 
