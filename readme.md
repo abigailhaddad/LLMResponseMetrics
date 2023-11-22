@@ -4,9 +4,9 @@ The purpose of this is to let users go from a list of LLMs (not just limited to 
 
 I have three general use cases in mind:
 
--"How good is this model for the kinds of questions I want to answer?"
--"How robust is this model to different ways of asking a question?"
--"Does the model know the answer to this question/will it ever output the correct answer?"
+* "How good is this model for the kinds of questions I want to answer?"
+* "How robust is this model to different ways of asking a question?"
+* "Does the model know the answer to this question/will it ever output the correct answer?"
 
 For this last question, we really just want to look at the best output. For the others, you may want to look at a broader set of responses. This includes code for both returning all of the responses, and for summarizing the prompt/model combinations in terms of the best and worst responses.
 
@@ -30,6 +30,7 @@ To install necessary dependencies, run:
 
 ```bash
 pip install -r requirements.txt
+```
 
 
 ## Using the Toolkit
