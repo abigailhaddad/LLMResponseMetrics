@@ -5,22 +5,33 @@ import re
 from litellm import completion
 import os
 
-def set_api_key_for_provider(provider: str):
+import os
+
+def read_api_key(provider: str) -> str:
     """
-    Retrieves the API key for the specified provider and sets the
-    appropriate environment variable.
+    Reads the API key for a given provider from a file located in a 'keys' directory 
+    above the current working directory.
 
     Args:
-    provider (str): The provider from which to retrieve the API key.
-                    Accepted values are 'OPENAI' or 'ANTHROPIC'.
+    provider (str): The name of the provider, e.g., 'OPENAI' or 'ANTHROPIC'.
 
+    Returns:
+    The API key as a string.
+    
     Raises:
-    ValueError: If the provider is not supported or the API key is not found.
+    FileNotFoundError: If the API key file does not exist.
     """
-    key_name = f"{provider}_API_KEY"
-    api_key = os.getenv(key_name)
-
-    return(api_key)
+    # Construct the file path for the API key file
+    key_filename = f"{provider.lower()}_key.txt"
+    # Adjust the path to look for the 'keys' folder at the same level as the script directory
+    key_folder_path = os.path.join(os.getcwd(), '..', 'keys')
+    key_file_path = os.path.join(key_folder_path, key_filename)
+    
+    try:
+        with open(key_file_path, 'r') as file:
+            return file.read().strip()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"API key file '{key_filename}' not found in '{key_folder_path}'.")
 
 
 # Function to parse the model response
@@ -60,11 +71,11 @@ def call_model(model: str, messages: list, provider: str, temperature: float):
     The API response.
     """
     # Set the API key for the provider
-    api_key = set_api_key_for_provider(provider)
-
+    api_key = read_api_key(provider)
     # Call the completion endpoint with the provided parameters
     response = completion(model=model, messages=messages, temperature=temperature, api_key = api_key)
     return response
+
 
 
 # Function to process each prompt in the CSV file
@@ -99,15 +110,4 @@ def aggregate_responses(responses_df: pd.DataFrame):
     # Placeholder for actual aggregation logic
     return responses_df
 
-# Main usage
 
-num_perturbations = 5
-models_dict = {'claude-2.1':  "ANTHROPIC", 'gpt-3.5-turbo-0301': "OPENAI",  'gpt-3.5-turbo':  "OPENAI"
-               } 
-csv_file_path = '../data/prompt_target_answer_pairs.csv'
-
-responses_df = process_prompts(csv_file_path, models_dict, num_perturbations)
-aggregated_df = aggregate_responses(responses_df)
-
-# Display the final DataFrame
-print(aggregated_df)
