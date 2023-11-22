@@ -4,8 +4,9 @@ import random
 import re
 from litellm import completion
 import os
-
-import os
+from transformers import AutoTokenizer, AutoModel
+import torch
+from scipy.spatial.distance import cosine
 
 def read_api_key(provider: str) -> str:
     """
@@ -105,9 +106,58 @@ def process_prompts(csv_file_path: str, models_dict: dict, num_perturbations: in
 
     return pd.DataFrame(results)
 
-# Function to aggregate the responses
-def aggregate_responses(responses_df: pd.DataFrame):
-    # Placeholder for actual aggregation logic
-    return responses_df
+def get_model(model_name: str):
+    """
+    Loads a HuggingFace model and tokenizer based on the model name.
+
+    Args:
+    model_name (str): The HuggingFace model name.
+
+    Returns:
+    model, tokenizer: The loaded model and tokenizer.
+    """
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name)
+    return model, tokenizer
+
+def encode_texts(texts: list, model, tokenizer):
+    """
+    Encodes a list of texts into embeddings using the provided model and tokenizer.
+
+    Args:
+    texts (list): A list of strings to encode.
+    model: The HuggingFace model.
+    tokenizer: The HuggingFace tokenizer.
+
+    Returns:
+    embeddings: The encoded embeddings for the texts.
+    """
+    encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+    with torch.no_grad():
+        model_output = model(**encoded_input)
+    embeddings = model_output.last_hidden_state.mean(dim=1)
+    return embeddings
+
+def calculate_similarity(target_texts: list, actual_texts: list, model_name: str):
+    """
+    Calculates the similarity scores between target and actual texts.
+
+    Args:
+    target_texts (list): The target outputs.
+    actual_texts (list): The actual outputs.
+    model_name (str): The HuggingFace model name for encoding texts.
+
+    Returns:
+    similarities (list): The list of similarity scores.
+    """
+    model, tokenizer = get_model(model_name)
+    target_embeddings = encode_texts(target_texts, model, tokenizer)
+    actual_embeddings = encode_texts(actual_texts, model, tokenizer)
+    
+    # Calculate cosine similarities
+    similarities = [1 - cosine(target_embedding, actual_embedding)
+                    for target_embedding, actual_embedding in zip(target_embeddings, actual_embeddings)]
+    
+    return similarities
 
 
