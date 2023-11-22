@@ -91,8 +91,9 @@ def process_prompts(csv_file_path: str, models_dict: dict, num_perturbations: in
             perturbations = get_perturbations(original_prompt, model, provider, num_perturbations)
 
             for perturbation in perturbations:
+                full_query = f"Please answer as briefly as possible: {perturbation}"
                 temperature = random.uniform(0.0, 1.0)  # Random temperature for each call
-                messages = [{"role": "user", "content": perturbation}]
+                messages = [{"role": "user", "content": full_query}]
                 response = call_model(model, messages, provider, temperature)
                 generated_text = response['choices'][0]['message']['content']
                 results.append({
