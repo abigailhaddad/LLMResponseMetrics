@@ -161,3 +161,19 @@ def calculate_similarity(target_texts: list, actual_texts: list, model_name: str
     return similarities
 
 
+def aggregate_results(df):
+    # Sort the DataFrame based on similarity scores
+    df_sorted = df.sort_values(by='similarity_score', ascending=False)
+
+    # Group by 'model' and 'original_prompt' and get the first (best) and last (worst) after sorting
+    grouped = df_sorted.groupby(['model', 'original_prompt'])
+    best_answers = grouped.head(1).rename(columns={'response': 'best_answer', 'similarity_score': 'best_similarity'})
+    worst_answers = grouped.tail(1).rename(columns={'response': 'worst_answer', 'similarity_score': 'worst_similarity'})
+    
+    # Merge the best and worst answers into one DataFrame
+    best_worst_merged = pd.merge(best_answers, worst_answers, on=['model', 'original_prompt'], suffixes=('_best', '_worst'))
+    
+    # Select and reorder columns for the final DataFrame
+    final_df = best_worst_merged[['model', 'original_prompt', 'best_answer', 'best_similarity', 'worst_answer', 'worst_similarity']]
+
+    return final_df
