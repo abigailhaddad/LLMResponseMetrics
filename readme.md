@@ -41,10 +41,10 @@ Launch the demo.ipynb Jupyter notebook to see examples of how to use the toolkit
 
 functions.py contains functions for:
 
-Reading API keys from files.
-Sending prompts to LLMs.
-Parsing the responses from LLMs.
-Comparing LLM responses to target answers to evaluate their performance.
+* Reading API keys from files.
+* Sending prompts to LLMs.
+* Parsing the responses from LLMs.
+* Comparing LLM responses to target answers to evaluate their performance.
 
 
 ## What models can I use?

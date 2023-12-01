@@ -3,10 +3,22 @@ import pandas as pd
 import random
 import re
 from litellm import completion
-import os
 from transformers import AutoTokenizer, AutoModel
 import torch
 from scipy.spatial.distance import cosine
+import glob
+import logging
+
+# Basic logging setup
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def del_file():
+    temp_files = glob.glob('litellm_*')
+    for file in temp_files:
+        os.remove(file)
+
+
 
 def read_api_key(provider: str) -> str:
     """
@@ -78,34 +90,109 @@ def call_model(model: str, messages: list, provider: str, temperature: float):
     return response
 
 
+def load_data(input_data, is_file_path=True):
+    """
+    Loads data from a CSV file or a list.
 
-# Function to process each prompt in the CSV file
-def process_prompts(csv_file_path: str, models_dict: dict, num_perturbations: int = 5):
-    df = pd.read_csv(csv_file_path)
+    Args:
+    input_data: File path or list of prompts.
+    is_file_path (bool): Flag to indicate if input_data is a file path.
+
+    Returns:
+    DataFrame with prompts.
+    """
+    if is_file_path:
+        logging.info("Reading prompts from CSV file.")
+        return pd.read_csv(input_data)
+    else:
+        logging.info("Using direct list of prompts.")
+        return pd.DataFrame(input_data, columns=['prompt'])
+
+def process_single_prompt(model, provider, prompt, generate_perturbations, num_perturbations):
+    results = []
+    perturbations = [prompt] if generate_perturbations else None
+
+    if generate_perturbations:
+        logging.info(f"Generating perturbations for prompt: {prompt}")
+        perturbations = get_perturbations(prompt, model, provider, num_perturbations)
+
+    for perturbation in perturbations or [prompt]:
+        full_query = f"Please answer as briefly as possible: {perturbation if generate_perturbations else prompt}"
+        temperature = random.uniform(0.0, 1.0)
+        messages = [{"role": "user", "content": full_query}]
+        response = call_model(model, messages, provider, temperature)
+        generated_text = response['choices'][0]['message']['content']
+
+        result = {
+            'model': model,
+            'original_prompt': prompt,
+            'response': generated_text,
+            'temperature': temperature,
+        }
+        if generate_perturbations:
+            result['perturbation'] = perturbation
+
+        results.append(result)
+
+    return results
+
+
+def perform_similarity_analysis(df, model_name):
+    """
+    Performs similarity analysis on the DataFrame.
+
+    Args:
+    df (DataFrame): DataFrame containing the prompts and responses.
+    model_name (str): The HuggingFace model name for encoding texts.
+
+    Returns:
+    DataFrame with similarity scores.
+    """
+    df['similarity_score'] = None
+    if 'target_answer' in df.columns:
+        logging.info("Performing similarity analysis.")
+        for index, row in df.iterrows():
+            target_answer = row['target_answer']
+            generated_text = row['response']
+            similarity_score = calculate_similarity([target_answer], [generated_text], model_name)
+            df.at[index, 'similarity_score'] = similarity_score
+
+    return df
+
+def process_prompts(input_data, models_dict, num_perturbations=5, is_file_path=True, generate_perturbations=True, perform_similarity=False):
+    """
+    Main function to process prompts.
+
+    Args:
+    input_data: File path or list of prompts.
+    models_dict: Dictionary of models and providers.
+    num_perturbations (int): Number of perturbations.
+    is_file_path (bool): Flag to indicate if input_data is a file path.
+    generate_perturbations (bool): Flag to generate perturbations.
+    perform_similarity (bool): Flag to perform similarity analysis.
+
+    Returns:
+    DataFrame with results.
+    """
+    df = load_data(input_data, is_file_path)
     results = []
 
     for model, provider in models_dict.items():
         for index, row in df.iterrows():
-            original_prompt = row['prompt']
-            target_answer = row['target_answer']
-            perturbations = get_perturbations(original_prompt, model, provider, num_perturbations)
+            prompt_results = process_single_prompt(model, provider, row['prompt'], generate_perturbations, num_perturbations)
+            results.extend(prompt_results)
 
-            for perturbation in perturbations:
-                full_query = f"Please answer as briefly as possible: {perturbation}"
-                temperature = random.uniform(0.0, 1.0)  # Random temperature for each call
-                messages = [{"role": "user", "content": full_query}]
-                response = call_model(model, messages, provider, temperature)
-                generated_text = response['choices'][0]['message']['content']
-                results.append({
-                    'model': model,
-                    'original_prompt': original_prompt,
-                    'perturbation': perturbation,
-                    'response': generated_text,
-                    'temperature': temperature,
-                    'target_answer':  target_answer,
-                })
+    # Create a DataFrame and conditionally add 'perturbation' column
+    results_df = pd.DataFrame(results)
+    if not generate_perturbations and 'perturbation' in results_df.columns:
+        results_df = results_df.drop(columns=['perturbation'])
 
-    return pd.DataFrame(results)
+    if perform_similarity:
+        results_df = perform_similarity_analysis(results_df, list(models_dict.keys())[0])  # Assuming model name is key
+
+    logging.info("Processing complete.")
+    return results_df
+
 
 def get_model(model_name: str):
     """
@@ -166,15 +253,15 @@ def aggregate_results(df):
     # Sort the DataFrame based on similarity scores
     df_sorted = df.sort_values(by='similarity_score', ascending=False)
 
-    # Group by 'model' and 'original_prompt' and get the first (best) and last (worst) after sorting
-    grouped = df_sorted.groupby(['model', 'original_prompt'])
+    # Group by 'model' and 'prompt' and get the first (best) and last (worst) after sorting
+    grouped = df_sorted.groupby(['model', 'prompt'])
     best_answers = grouped.head(1).rename(columns={'response': 'best_answer', 'similarity_score': 'best_similarity'})
     worst_answers = grouped.tail(1).rename(columns={'response': 'worst_answer', 'similarity_score': 'worst_similarity'})
     
     # Merge the best and worst answers into one DataFrame
-    best_worst_merged = pd.merge(best_answers, worst_answers, on=['model', 'original_prompt'], suffixes=('_best', '_worst'))
+    best_worst_merged = pd.merge(best_answers, worst_answers, on=['model', 'prompt'], suffixes=('_best', '_worst'))
     
     # Select and reorder columns for the final DataFrame
-    final_df = best_worst_merged[['model', 'original_prompt', 'best_answer', 'best_similarity', 'worst_answer', 'worst_similarity']]
+    final_df = best_worst_merged[['model', 'prompt', 'best_answer', 'best_similarity', 'worst_answer', 'worst_similarity']]
 
     return final_df
