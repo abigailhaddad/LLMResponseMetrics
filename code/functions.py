@@ -13,6 +13,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
+
 def del_file():
     temp_files = glob.glob('litellm_*')
     for file in temp_files:
@@ -108,7 +109,9 @@ def load_data(input_data, is_file_path=True):
         logging.info("Using direct list of prompts.")
         return pd.DataFrame(input_data, columns=['prompt'])
 
-def process_single_prompt(model, provider, prompt, generate_perturbations, num_perturbations):
+
+
+def process_single_prompt(model, provider, prompt, generate_perturbations, num_perturbations, instructions, temperature):
     results = []
     perturbations = [prompt] if generate_perturbations else None
 
@@ -116,9 +119,10 @@ def process_single_prompt(model, provider, prompt, generate_perturbations, num_p
         logging.info(f"Generating perturbations for prompt: {prompt}")
         perturbations = get_perturbations(prompt, model, provider, num_perturbations)
 
+
     for perturbation in perturbations or [prompt]:
-        full_query = f"Please answer as briefly as possible: {perturbation if generate_perturbations else prompt}"
-        temperature = random.uniform(0.0, 1.0)
+        temperature = random.uniform(0.0, 1.0) if temperature == "variable" else temperature  # Set a default value for fixed temperature
+        full_query = f"{instructions} {perturbation if generate_perturbations else prompt}"
         messages = [{"role": "user", "content": full_query}]
         response = call_model(model, messages, provider, temperature)
         generated_text = response['choices'][0]['message']['content']
@@ -135,6 +139,7 @@ def process_single_prompt(model, provider, prompt, generate_perturbations, num_p
         results.append(result)
 
     return results
+
 
 
 def perform_similarity_analysis(df, model_name):
@@ -159,7 +164,7 @@ def perform_similarity_analysis(df, model_name):
 
     return df
 
-def process_prompts(input_data, models_dict, num_perturbations=5, is_file_path=True, generate_perturbations=True, perform_similarity=False):
+def process_prompts(input_data, models_dict, num_perturbations=5, num_runs=1, is_file_path=True, generate_perturbations=True, perform_similarity=False, instructions ="Please answer as briefly as possible: ", temperature= .7):    
     """
     Main function to process prompts.
 
@@ -179,8 +184,9 @@ def process_prompts(input_data, models_dict, num_perturbations=5, is_file_path=T
 
     for model, provider in models_dict.items():
         for index, row in df.iterrows():
-            prompt_results = process_single_prompt(model, provider, row['prompt'], generate_perturbations, num_perturbations)
-            results.extend(prompt_results)
+            for _ in range(num_runs):
+                prompt_results = process_single_prompt(model, provider, row['prompt'], generate_perturbations, num_perturbations, instructions, temperature)
+                results.extend(prompt_results)
 
     # Create a DataFrame and conditionally add 'perturbation' column
     results_df = pd.DataFrame(results)
