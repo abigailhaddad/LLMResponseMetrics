@@ -62,7 +62,7 @@ def parse_model_response(response):
 # Function to get paraphrased sentences (perturbations) from the model
 def get_perturbations(prompt: str, model: str, provider: str, num_perturbations: int = 5, temperature: float = 0.5):
     paraphrase_instruction = (
-        f"Generate a bulleted list of {num_perturbations} sentences "
+        f"Generate a bulleted list of {num_perturbations + 1} sentences " # I don't know why this is necessary but I'm consisting getting off by 1 when I don't include it
         f"with the same meaning as \"{prompt}\""
     )
     messages = [{"role": "user", "content": paraphrase_instruction}]
@@ -111,34 +111,39 @@ def load_data(input_data, is_file_path=True):
 
 
 
-def process_single_prompt(model, provider, prompt, generate_perturbations, num_perturbations, instructions, temperature):
+def process_single_prompt(model, provider, prompt, num_perturbations, instructions, temperature, target_answer=None):
     results = []
-    perturbations = [prompt] if generate_perturbations else None
+    # Always include the original prompt in the list of perturbations
+    perturbations = [prompt]
 
-    if generate_perturbations:
-        logging.info(f"Generating perturbations for prompt: {prompt}")
-        perturbations = get_perturbations(prompt, model, provider, num_perturbations)
+    # Add additional perturbations if num_perturbations is a number
+    if num_perturbations:
+        additional_perturbations = get_perturbations(prompt, model, provider, num_perturbations)
+        perturbations.extend(additional_perturbations)
 
-
-    for perturbation in perturbations or [prompt]:
-        temperature = random.uniform(0.0, 1.0) if temperature == "variable" else temperature  # Set a default value for fixed temperature
-        full_query = f"{instructions} {perturbation if generate_perturbations else prompt}"
+    for perturbation in perturbations:
+        temp = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
+        full_query = f"{instructions} {perturbation}"
         messages = [{"role": "user", "content": full_query}]
-        response = call_model(model, messages, provider, temperature)
+        response = call_model(model, messages, provider, temp)
         generated_text = response['choices'][0]['message']['content']
 
         result = {
             'model': model,
             'original_prompt': prompt,
             'response': generated_text,
-            'temperature': temperature,
+            'temperature': temp,
+            'actual_prompt': perturbation,
         }
-        if generate_perturbations:
-            result['perturbation'] = perturbation
+
+        # Include target_answer in the result if it's provided
+        if target_answer is not None:
+            result['target_answer'] = target_answer
 
         results.append(result)
 
     return results
+
 
 
 
@@ -164,7 +169,7 @@ def perform_similarity_analysis(df, model_name):
 
     return df
 
-def process_prompts(input_data, models_dict, num_perturbations=5, num_runs=1, is_file_path=True, generate_perturbations=True, perform_similarity=False, instructions ="Please answer as briefly as possible: ", temperature= .7):    
+def process_prompts(input_data, models_dict, num_perturbations=0, num_runs=1, is_file_path=True, perform_similarity=False, instructions="Please answer as briefly as possible: ", temperature=0.7):
     """
     Main function to process prompts.
 
@@ -184,14 +189,16 @@ def process_prompts(input_data, models_dict, num_perturbations=5, num_runs=1, is
 
     for model, provider in models_dict.items():
         for index, row in df.iterrows():
+            target_answer = row['target_answer'] if 'target_answer' in df.columns else None
             for _ in range(num_runs):
-                prompt_results = process_single_prompt(model, provider, row['prompt'], generate_perturbations, num_perturbations, instructions, temperature)
+                prompt_results = process_single_prompt(model, provider, row['prompt'], num_perturbations, instructions, temperature, target_answer)
                 results.extend(prompt_results)
 
-    # Create a DataFrame and conditionally add 'perturbation' column
+
+    # Create a DataFrame and conditionally add 'actual_prompt' column
     results_df = pd.DataFrame(results)
-    if not generate_perturbations and 'perturbation' in results_df.columns:
-        results_df = results_df.drop(columns=['perturbation'])
+    if not num_perturbations and 'actual_prompt' in results_df.columns:
+        results_df = results_df.drop(columns=['actual_prompt'])
 
     if perform_similarity:
         results_df = perform_similarity_analysis(results_df, list(models_dict.keys())[0])  # Assuming model name is key
@@ -260,14 +267,14 @@ def aggregate_results(df):
     df_sorted = df.sort_values(by='similarity_score', ascending=False)
 
     # Group by 'model' and 'prompt' and get the first (best) and last (worst) after sorting
-    grouped = df_sorted.groupby(['model', 'prompt'])
+    grouped = df_sorted.groupby(['model', 'original_prompt'])
     best_answers = grouped.head(1).rename(columns={'response': 'best_answer', 'similarity_score': 'best_similarity'})
     worst_answers = grouped.tail(1).rename(columns={'response': 'worst_answer', 'similarity_score': 'worst_similarity'})
     
     # Merge the best and worst answers into one DataFrame
-    best_worst_merged = pd.merge(best_answers, worst_answers, on=['model', 'prompt'], suffixes=('_best', '_worst'))
+    best_worst_merged = pd.merge(best_answers, worst_answers, on=['model', 'original_prompt'], suffixes=('_best', '_worst'))
     
     # Select and reorder columns for the final DataFrame
-    final_df = best_worst_merged[['model', 'prompt', 'best_answer', 'best_similarity', 'worst_answer', 'worst_similarity']]
+    final_df = best_worst_merged[['model', 'original_prompt', 'best_answer', 'best_similarity', 'worst_answer', 'worst_similarity']]
 
     return final_df
