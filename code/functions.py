@@ -170,42 +170,35 @@ def perform_similarity_analysis(df, model_name):
     return df
 
 def process_prompts(input_data, models_dict, num_perturbations=0, num_runs=1, is_file_path=True, perform_similarity=False, instructions="Please answer as briefly as possible: ", temperature=0.7):
-    """
-    Main function to process prompts.
-
-    Args:
-    input_data: File path or list of prompts.
-    models_dict: Dictionary of models and providers.
-    num_perturbations (int): Number of perturbations.
-    is_file_path (bool): Flag to indicate if input_data is a file path.
-    generate_perturbations (bool): Flag to generate perturbations.
-    perform_similarity (bool): Flag to perform similarity analysis.
-
-    Returns:
-    DataFrame with results.
-    """
     df = load_data(input_data, is_file_path)
     results = []
 
     for model, provider in models_dict.items():
-        for index, row in df.iterrows():
-            target_answer = row['target_answer'] if 'target_answer' in df.columns else None
-            for _ in range(num_runs):
-                prompt_results = process_single_prompt(model, provider, row['prompt'], num_perturbations, instructions, temperature, target_answer)
-                results.extend(prompt_results)
+        process_model_prompts(model, provider, df, num_perturbations, num_runs, results, instructions, temperature)
 
+    results_df = create_results_df(results, num_perturbations, perform_similarity, models_dict)
+    logging.info("Processing complete.")
+    return results_df
 
-    # Create a DataFrame and conditionally add 'actual_prompt' column
+def process_model_prompts(model, provider, df, num_perturbations, num_runs, results, instructions, temperature):
+    for index, row in df.iterrows():
+        target_answer = row['target_answer'] if 'target_answer' in df.columns else None
+        process_row(model, provider, row['prompt'], num_perturbations, num_runs, results, instructions, temperature, target_answer)
+
+def process_row(model, provider, prompt, num_perturbations, num_runs, results, instructions, temperature, target_answer):
+    for _ in range(num_runs):
+        prompt_results = process_single_prompt(model, provider, prompt, num_perturbations, instructions, temperature, target_answer)
+        results.extend(prompt_results)
+
+def create_results_df(results, num_perturbations, perform_similarity, models_dict):
     results_df = pd.DataFrame(results)
     if not num_perturbations and 'actual_prompt' in results_df.columns:
-        results_df = results_df.drop(columns=['actual_prompt'])
+        results_df.drop(columns=['actual_prompt'], inplace=True)
 
     if perform_similarity:
         results_df = perform_similarity_analysis(results_df, list(models_dict.keys())[0])  # Assuming model name is key
 
-    logging.info("Processing complete.")
     return results_df
-
 
 def get_model(model_name: str):
     """
