@@ -13,12 +13,10 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-
 def del_file():
     temp_files = glob.glob('litellm_*')
     for file in temp_files:
         os.remove(file)
-
 
 
 def read_api_key(provider: str) -> str:
@@ -93,80 +91,66 @@ def call_model(model: str, messages: list, provider: str, temperature: float):
 
 def load_data(input_data, is_file_path=True):
     """
-    Loads data from a CSV file or a list.
+    Loads data from a CSV file or a list and processes the 'keywords' column.
 
     Args:
     input_data: File path or list of prompts.
     is_file_path (bool): Flag to indicate if input_data is a file path.
 
     Returns:
-    DataFrame with prompts.
+    DataFrame with prompts and processed keywords.
     """
     if is_file_path:
         logging.info("Reading prompts from CSV file.")
-        return pd.read_csv(input_data)
+        df = pd.read_csv(input_data)
     else:
         logging.info("Using direct list of prompts.")
-        return pd.DataFrame(input_data, columns=['prompt'])
+        df = pd.DataFrame(input_data, columns=['prompt'])
+
+    if 'keywords' in df.columns:
+        df['keywords'] = df['keywords'].apply(lambda x: [keyword.strip().lower() for keyword in x.split(',') if keyword.strip()])
+    
+    return df
 
 
 
-def process_single_prompt(model, provider, prompt, num_perturbations, instructions, temperature, target_answer=None):
-    results = []
-    # Always include the original prompt in the list of perturbations
-    perturbations = [prompt]
+def process_single_prompt(model, provider, prompt, num_perturbations, instructions, temperature, target_answer=None, keywords=None):
+    perturbations = [prompt] + (get_perturbations(prompt, model, provider, num_perturbations) if num_perturbations else [])
+    temp_func = lambda: random.uniform(0.0, 1.0) if temperature == "variable" else temperature
 
-    # Add additional perturbations if num_perturbations is a number
-    if num_perturbations:
-        additional_perturbations = get_perturbations(prompt, model, provider, num_perturbations)
-        perturbations.extend(additional_perturbations)
-
-    for perturbation in perturbations:
-        temp = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
-        full_query = f"{instructions} {perturbation}"
-        messages = [{"role": "user", "content": full_query}]
-        response = call_model(model, messages, provider, temp)
-        generated_text = response['choices'][0]['message']['content']
-
-        result = {
-            'model': model,
-            'original_prompt': prompt,
-            'response': generated_text,
-            'temperature': temp,
-            'actual_prompt': perturbation,
-        }
-
-        # Include target_answer in the result if it's provided
-        if target_answer is not None:
-            result['target_answer'] = target_answer
-
-        results.append(result)
+    results = [
+        create_result_dict(
+            model, prompt, perturbation, call_model(
+                model, [{"role": "user", "content": f"{instructions} {perturbation}"}], provider, temp_func()
+            ), temp_func(), target_answer, keywords
+        )
+        for perturbation in perturbations
+    ]
 
     return results
 
-
-
+def create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords):
+    generated_text = response['choices'][0]['message']['content']
+    result = {
+        'model': model,
+        'original_prompt': original_prompt,
+        'response': generated_text,
+        'temperature': temperature,
+        'actual_prompt': actual_prompt,
+    }
+    if target_answer is not None:
+        result['target_answer'] = target_answer
+    if keywords is not None:
+        result['keywords'] = keywords
+    return result
 
 def perform_similarity_analysis(df, model_name):
-    """
-    Performs similarity analysis on the DataFrame.
-
-    Args:
-    df (DataFrame): DataFrame containing the prompts and responses.
-    model_name (str): The HuggingFace model name for encoding texts.
-
-    Returns:
-    DataFrame with similarity scores.
-    """
-    df['similarity_score'] = None
     if 'target_answer' in df.columns:
         logging.info("Performing similarity analysis.")
-        for index, row in df.iterrows():
-            target_answer = row['target_answer']
-            generated_text = row['response']
-            similarity_score = calculate_similarity([target_answer], [generated_text], model_name)
-            df.at[index, 'similarity_score'] = similarity_score
-
+        df['similarity_score'] = df.apply(
+            lambda row: calculate_similarity([row['target_answer']], [row['response']], model_name) if pd.notnull(row['target_answer']) else None, 
+            axis=1
+        )
     return df
 
 def process_prompts(input_data, models_dict, num_perturbations=0, num_runs=1, is_file_path=True, perform_similarity=False, instructions="Please answer as briefly as possible: ", temperature=0.7):
@@ -183,11 +167,12 @@ def process_prompts(input_data, models_dict, num_perturbations=0, num_runs=1, is
 def process_model_prompts(model, provider, df, num_perturbations, num_runs, results, instructions, temperature):
     for index, row in df.iterrows():
         target_answer = row['target_answer'] if 'target_answer' in df.columns else None
-        process_row(model, provider, row['prompt'], num_perturbations, num_runs, results, instructions, temperature, target_answer)
+        keywords = row['keywords'] if 'keywords' in df.columns else None
+        process_row(model, provider, row['prompt'], num_perturbations, num_runs, results, instructions, temperature, target_answer, keywords)
 
-def process_row(model, provider, prompt, num_perturbations, num_runs, results, instructions, temperature, target_answer):
+def process_row(model, provider, prompt, num_perturbations, num_runs, results, instructions, temperature, target_answer, keywords):
     for _ in range(num_runs):
-        prompt_results = process_single_prompt(model, provider, prompt, num_perturbations, instructions, temperature, target_answer)
+        prompt_results = process_single_prompt(model, provider, prompt, num_perturbations, instructions, temperature, target_answer, keywords)
         results.extend(prompt_results)
 
 def create_results_df(results, num_perturbations, perform_similarity, models_dict):

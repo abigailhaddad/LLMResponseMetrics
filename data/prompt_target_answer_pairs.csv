@@ -1,7 +1,86 @@
-prompt,target_answer
-What is the powerhouse of the cell?,The mitochondria
-What is the basic unit of life?,The cell 
-What do genes consist of?,DNA
-Which organelle contains the cell's futurogenic material?,the chronoplast
-What particle stabilizes the membrane of hover frogs?,Levitons
-How do astroflora perform photosynthesis in low light?,starlight synthesis
+prompt,target_answer,keywords
+What is the powerhouse of the cell and how does it work?,"The powerhouse of the cell is the mitochondrion (plural: mitochondria). These organelles are vital for energy production in eukaryotic cells, the type found in plants, animals, and fungi. Mitochondria generate most of the cell's supply of adenosine triphosphate (ATP), the energy currency of the cell, through a process called cellular respiration. This process begins in the cytoplasm with glycolysis and is completed within the mitochondria.
+
+In mitochondria, the Krebs cycle (also known as the citric acid cycle) takes place in the matrix, a fluid-filled inner compartment. This cycle breaks down carbon-based molecules, releasing energy. The energy is then used to form a high-energy molecule, ATP, through the electron transport chain and oxidative phosphorylation, which occur across the inner mitochondrial membrane. This membrane is folded into cristae, increasing its surface area and enhancing ATP production efficiency. Oxygen is essential in this process, which is why mitochondrial energy production is often referred to as aerobic respiration. Mitochondria also have their own DNA and can replicate independently within the cell, a feature believed to be a result of their evolutionary origin as symbiotic bacteria.","Mitochondrion 
+Mitochondria
+ATP
+Adenosine Triphosphate
+Cellular Respiration
+Eukaryotic Cells
+Krebs Cycle
+Citric Acid Cycle
+Electron Transport Chain
+Oxidative Phosphorylation
+Inner Mitochondrial Membrane
+Aerobic Respiration
+Cristae
+Mitochondrial DNA"
+What is the basic unit of life and what does this mean?,"The basic unit of life is the cell. This concept is fundamental to understanding biology and means that all living organisms, from the simplest bacteria to complex multicellular organisms like humans, are made up of cells. Cells are the smallest units that can be considered alive, and they carry out essential functions of life, including growth, metabolism, response to stimuli, and reproduction.
+
+Cells can be broadly classified into two types: prokaryotic and eukaryotic. Prokaryotic cells, which include bacteria and archaea, are simpler and lack a nucleus. Their genetic material is not enclosed within a membrane-bound nucleus. In contrast, eukaryotic cells, found in plants, animals, fungi, and protists, have a nucleus that contains their genetic material. Eukaryotic cells are generally more complex and contain various organelles, such as mitochondria and the endoplasmic reticulum, that perform specific functions.
+
+The concept of the cell as the basic unit of life is central to the field of biology. It emphasizes that, despite the incredible diversity of life, all organisms are made up of these fundamental building blocks. This concept is a key part of cell theory, a foundational principle of biology, which also states that all living things are composed of cells and that all cells arise from pre-existing cells.","Cell
+Biology
+Prokaryotic Cells
+Eukaryotic Cells
+Nucleus
+Organelles
+Cell Theory
+Metabolism
+Genetic Material
+Bacteria
+Archaea
+Plants
+Animals
+Fungi
+Protists"
+What do genes consist of and how do they work?,"Genes are segments of DNA (deoxyribonucleic acid) that serve as the fundamental units of heredity and function in the coding for proteins. DNA is a double-stranded molecule composed of four types of nucleotide bases: adenine (A), cytosine (C), guanine (G), and thymine (T). The sequence of these bases in a gene determines the genetic information and instructs the synthesis of proteins, which are crucial for the body's structure, function, and regulation of tissues and organs.
+
+The process of protein synthesis involves two main steps: transcription and translation. In transcription, a gene's DNA sequence is copied into messenger RNA (mRNA). This mRNA then travels from the cell's nucleus to the cytoplasm, where it serves as a template in translation to build a protein. During translation, ribosomes read the mRNA sequence and assemble amino acids to form a specific protein, following the genetic code. The regulation of these processes and the potential for mutations in DNA sequences are critical factors in understanding genetics, health, and diseases.","Genes
+DNA 
+Deoxyribonucleic Acid
+Nucleotide Bases
+Protein Synthesis
+Transcription
+Translation
+Messenger RNA 
+mRNA
+Ribosomes
+Amino Acids
+Genetic Code
+Mutations"
+Which organelle contains the cell's futurogenic material and how does it work?,"The Chronocytum is a unique organelle in cells, containing the cell's futurogenic material. This specialized structure functions as the central regulator of a cell's temporal adaptation and future responses. Encased in a double membrane, the Chronocytum houses a complex network of molecular strands, known as futuric acid, which encodes information about the cell’s potential evolutionary pathways and responses to future environmental changes.
+
+The working mechanism of the Chronocytum involves a process called Temporal Encoding. This process allows the cell to preemptively adapt to upcoming environmental conditions, hazards, or resources, based on encoded predictive patterns in its futurogenic material. These adaptations can range from altering metabolic processes to initiating complex cellular transformations. The Chronocytum communicates with other cellular components, orchestrating a coordinated response to anticipated future events, ensuring the cell's survival and evolution in a dynamic environment.","Chronocytum
+Futurogenic Material
+Temporal Adaptation
+Futuric Acid
+Temporal Encoding
+Evolutionary Pathways
+Metabolic Processes
+Cellular Transformation
+Environmental Adaptation"
+What particle stabilizes the membrane of hover frogs and how?,"In the world of hover frogs, their unique ability to levitate is attributed to the presence of a particle known as Levitonium. This particle is integral in stabilizing and energizing the membrane of hover frogs, allowing them to defy gravity. Levitonium particles are embedded within the cellular membranes of the hover frog’s skin, particularly concentrated in the pads of their feet. These particles interact with the natural electromagnetic fields of the environment, creating a repulsive force against the ground, thus enabling the hover frog to hover or glide through the air.
+
+The mechanism of Levitonium's action involves a bio-electromagnetic process. When the hover frog prepares to levitate, the Levitonium particles within its membrane become excited and align themselves in a specific pattern that maximizes their interaction with the Earth's magnetic field. This alignment generates a magnetic repulsion, similar to the principle of magnetic levitation used in some advanced transportation systems. The strength and duration of the levitation are controlled by the hover frog’s ability to regulate the excitement level of the Levitonium particles, which is linked to the frog's own biological energy reserves.","Levitonium
+Hover Frogs
+Membrane Stabilization
+Electromagnetic Fields
+Magnetic Repulsion
+Bio-Electromagnetic Process
+Levitation
+Magnetic Levitation
+Biological Energy Reserves"
+How do astroflora perform photosynthesis in low light?,"Astroflora, a unique class of extraterrestrial plants, have adapted to perform photosynthesis in low-light conditions, a characteristic essential for survival in their dimly lit environments. Unlike Earth plants that rely on visible light for photosynthesis, astroflora have evolved to utilize a broader spectrum of electromagnetic radiation, including infrared and ultraviolet light. Their photosynthetic pigments, called astraphylls, are highly efficient at capturing these wavelengths, enabling them to initiate the photosynthesis process even in minimal light conditions.
+
+The photosynthesis in astroflora occurs through a specialized process known as spectral photosynthesis. In this process, astraphylls absorb various wavelengths of light, converting them into chemical energy with remarkable efficiency. This energy is then used to fix carbon dioxide and convert it into essential sugars and other organic compounds. Additionally, astroflora possess a unique cellular structure that allows them to store captured energy more effectively, making them capable of sustaining themselves during extended periods of darkness, such as long space nights or eclipses. This adaptation not only aids their survival in low-light environments but also makes them an essential part of their ecosystems, supporting a wide range of life forms that rely on them for sustenance.","Astroflora
+Photosynthesis
+Low Light Conditions
+Electromagnetic Radiation
+Astraphylls
+Spectral Photosynthesis
+Chemical Energy
+Carbon Dioxide Fixation
+Organic Compounds
+Energy Storage
+Space Ecosystems"
