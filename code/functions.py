@@ -221,9 +221,8 @@ class SimilarityCalculator:
         return embeddings
 
 
-
 class KeywordMatchCalculator:
-    def calculate_keyword_match_percent(target_keywords: list, actual_responses: list):
+    def calculate_keyword_match_percent(self, target_keywords: list, actual_responses: list):
         """
         Calculates the fraction of target keywords found in each actual text response.
 
@@ -246,14 +245,14 @@ class KeywordMatchCalculator:
             match_fractions.append(match_fraction)
         return match_fractions
     
-    def add_keyword_match_percentages(df, target_keywords_column='keywords'):
+    def add_keyword_match_percentages(self, df, target_keywords_column='keywords'):
         df['keyword_match_percent'] = df.apply(
-            lambda row: calculate_keyword_match_percent(row[target_keywords_column], [row['response']])[0]
+            lambda row: self.calculate_keyword_match_percent(row[target_keywords_column], [row['response']])[0]
             if row[target_keywords_column] else None, 
             axis=1
         )
         return df
-    
+
     def calculate_and_aggregate(self, df):
         df_with_keyword_matches = self.add_keyword_match_percentages(df, 'keywords')
         result_aggregator = ResultAggregator()
@@ -269,31 +268,28 @@ class LLMRatingCalculator:
     def __init__(self, llm_evaluation_model):
         self.llm_evaluation_model = llm_evaluation_model
 
-    def rate_response_with_llm(row, llm_evaluation_model):
-        model, provider = llm_evaluation_model
+    def rate_response_with_llm(self, row):
+        model, provider = self.llm_evaluation_model
         target_answer = row['target_answer']
         actual_response = row['response']
 
-        # Formulate the prompt for the LLM
         rating_prompt = f"Rate the following response on an integer scale from 1 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {target_answer}\nResponse: {actual_response}\nRating:"
 
-        # Call the model
         response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
         rating = response['choices'][0]['message']['content'].strip()
 
-        # Extract and return the rating number
         try:
             return int(rating)
         except ValueError:
             logging.warning(f"Could not extract a valid rating from response: {rating}")
             return None
 
-    def add_ratings_to_df(df, llm_evaluation_model):
-        df['rating'] = df.apply(lambda row: rate_response_with_llm(row, llm_evaluation_model), axis=1)/10
+    def add_ratings_to_df(self, df):
+        df['rating'] = df.apply(lambda row: self.rate_response_with_llm(row), axis=1)/10
         return df
     
     def calculate_and_aggregate(self, df):
-        df_with_ratings = self.add_ratings_to_df(df, self.llm_evaluation_model)
+        df_with_ratings = self.add_ratings_to_df(df)
         result_aggregator = ResultAggregator()
         aggregated_results = result_aggregator.aggregate(
             df_with_ratings, 
@@ -303,7 +299,6 @@ class LLMRatingCalculator:
         )
         return aggregated_results
 
-   
 
 class LLMAnalysisPipeline:
     def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, temperature, 
