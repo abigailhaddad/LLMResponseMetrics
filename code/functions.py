@@ -102,13 +102,13 @@ def load_data(input_data, is_file_path=True):
     """
     if is_file_path:
         logging.info("Reading prompts from CSV file.")
-        df = pd.read_csv(input_data)
+        df = pd.read_csv(input_data, encoding='ISO-8859-1')
     else:
         logging.info("Using direct list of prompts.")
         df = pd.DataFrame(input_data, columns=['prompt'])
 
     if 'keywords' in df.columns:
-        df['keywords'] = df['keywords'].apply(lambda x: [keyword.strip().lower() for keyword in x.split(',') if keyword.strip()])
+        df['keywords'] = df['keywords'].apply(lambda x: [keyword.strip().lower() for keyword in x.split('\n') if keyword.strip()])
     
     return df
 
@@ -254,5 +254,100 @@ def aggregate_results(df):
     
     # Select and reorder columns for the final DataFrame
     final_df = best_worst_merged[['model', 'original_prompt', 'best_answer', 'best_similarity', 'worst_answer', 'worst_similarity']]
+
+    return final_df
+
+def calculate_keyword_match_percent(target_keywords: list, actual_responses: list):
+    """
+    Calculates the fraction of target keywords found in each actual text response.
+
+    Args:
+    target_keywords (list): The list of target keywords.
+    actual_responses (list): The list of actual text responses.
+
+    Returns:
+    match_fractions (list): The list of keyword match fractions.
+    """
+    match_fractions = []
+    for response in actual_responses:
+        if not target_keywords or not response:
+            match_fractions.append(0)
+            continue
+
+        response_lower = response.lower()
+        matched_keywords = sum(keyword.lower() in response_lower for keyword in target_keywords)
+        match_fraction = matched_keywords / len(target_keywords)  # Fraction instead of percentage
+        match_fractions.append(match_fraction)
+    
+    return match_fractions
+
+def add_keyword_match_percentages(df, target_keywords_column='keywords'):
+    df['keyword_match_percent'] = df.apply(
+            lambda row: calculate_keyword_match_percent(row[target_keywords_column], [row['response']])[0]
+            if row[target_keywords_column] else None, 
+            axis=1
+        )
+    return df
+
+    
+def aggregate_keyword_results(df):
+    # Sort the DataFrame based on keyword match percent
+    df_sorted = df.sort_values(by='keyword_match_percent', ascending=False)
+
+    # Group by 'model' and 'original_prompt' and get the best and worst keyword matches
+    grouped = df_sorted.groupby(['model', 'original_prompt'])
+    best_keyword_matches = grouped.head(1).rename(columns={'response': 'best_keyword_match', 'keyword_match_percent': 'best_keyword_match_percent'})
+    worst_keyword_matches = grouped.tail(1).rename(columns={'response': 'worst_keyword_match', 'keyword_match_percent': 'worst_keyword_match_percent'})
+
+    # Merge the best and worst keyword matches into one DataFrame
+    best_worst_merged = pd.merge(best_keyword_matches, worst_keyword_matches, on=['model', 'original_prompt'], suffixes=('_best', '_worst'))
+
+    # Select and reorder columns for the final DataFrame
+    final_df = best_worst_merged[['model', 'original_prompt', 'best_keyword_match', 'best_keyword_match_percent', 'worst_keyword_match', 'worst_keyword_match_percent']]
+
+    return final_df
+
+
+
+def rate_response_with_llm(row, llm_evaluation_model):
+    model, provider = llm_evaluation_model
+    target_answer = row['target_answer']
+    actual_response = row['response']
+
+    # Formulate the prompt for the LLM
+    rating_prompt = f"Rate the following response on an integer scale from 1 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {target_answer}\nResponse: {actual_response}\nRating:"
+
+    # Call the model
+    response = call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
+    rating = response['choices'][0]['message']['content'].strip()
+
+    # Extract and return the rating number
+    try:
+        return int(rating)
+    except ValueError:
+        logging.warning(f"Could not extract a valid rating from response: {rating}")
+        return None
+
+def add_ratings_to_df(df, llm_evaluation_model):
+    df['rating'] = df.apply(lambda row: rate_response_with_llm(row, llm_evaluation_model), axis=1)
+    return df
+
+
+def aggregate_rating_results(df):
+    # Shuffle the DataFrame to randomly break ties
+    df_shuffled = df.sample(frac=1).reset_index(drop=True)
+
+    # Sort the DataFrame based on rating
+    df_sorted = df_shuffled.sort_values(by='rating', ascending=False)
+
+    # Group and get the best and worst rated matches
+    grouped = df_sorted.groupby(['model', 'original_prompt'])
+    best_rated = grouped.head(1).rename(columns={'response': 'best_rated', 'rating': 'best_rating'})
+    worst_rated = grouped.tail(1).rename(columns={'response': 'worst_rated', 'rating': 'worst_rating'})
+
+    # Merge the best and worst rated into one DataFrame
+    best_worst_merged = pd.merge(best_rated, worst_rated, on=['model', 'original_prompt'], suffixes=('_best', '_worst'))
+
+    final_df = best_worst_merged[['model', 'original_prompt', 'best_rated', 'best_rating', 'worst_rated', 'worst_rating']]
 
     return final_df
