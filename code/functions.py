@@ -80,9 +80,9 @@ class LLMUtility:
 
 
 class PerturbationGenerator:
-    def __init__(self, perturbation_model, provider, num_perturbations, temperature):
-        self.perturbation_model = perturbation_model
-        self.provider = provider
+    def __init__(self, perturbation_model, num_perturbations, temperature):
+        self.perturbation_model = perturbation_model[0]
+        self.provider = perturbation_model[1]
         self.num_perturbations = num_perturbations
         self.temperature = temperature
 
@@ -92,7 +92,7 @@ class PerturbationGenerator:
         response = LLMUtility.call_model(self.perturbation_model, messages, self.provider, self.temperature)
         return self.parse_model_response(response)
 
-    def parse_model_response(response):
+    def parse_model_response(self, response):
         content = response['choices'][0]['message']['content']
         if content.startswith('1.'):
             perturbations = re.split(r'\n\d+\.\s*', content)
@@ -286,7 +286,7 @@ class LLMRatingCalculator:
         rating_prompt = f"Rate the following response on an integer scale from 1 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {target_answer}\nResponse: {actual_response}\nRating:"
 
         # Call the model
-        response = call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
+        response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
         rating = response['choices'][0]['message']['content'].strip()
 
         # Extract and return the rating number
@@ -314,10 +314,11 @@ class LLMRatingCalculator:
    
 
 class LLMAnalysisPipeline:
-    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model):
+    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, temperature, 
+    num_runs, is_file_path, similarity_model_name, num_perturbations, instructions):
         self.data_loader = DataLoader(input_data)
-        self.response_generator = ModelResponseGenerator(models_dict, "instructions", 0.7)
-        self.perturbation_generator = PerturbationGenerator(perturbation_model, "provider", 5, 0.5)
+        self.perturbation_generator = PerturbationGenerator(perturbation_model, num_perturbations, temperature)
+        self.response_generator = ModelResponseGenerator(models_dict, instructions, temperature)
         self.similarity_calculator = SimilarityCalculator('model_name_for_similarity')
         self.keyword_match_calculator = KeywordMatchCalculator()
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
