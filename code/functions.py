@@ -171,21 +171,15 @@ class ResultAggregator:
         best_worst_merged = pd.merge(best_results, worst_results, on=group_by_columns, suffixes=('_best', '_worst'))
         return best_worst_merged
 
-
-
-
 class SimilarityCalculator:
     def __init__(self, model_name):
         self.model_name = model_name
 
-    def calculate_similarity(self, target_texts: list, actual_texts: list):
+    def calculate_score(self, target_texts, actual_texts):
         model, tokenizer = self.get_model(self.model_name)
         target_embeddings = self.encode_texts(target_texts, model, tokenizer)
         actual_embeddings = self.encode_texts(actual_texts, model, tokenizer)
-
-        similarities = [1 - cosine(target_embedding, actual_embedding)
-                        for target_embedding, actual_embedding in zip(target_embeddings, actual_embeddings)]
-        return similarities
+        return 1 - cosine(target_embeddings[0], actual_embeddings[0])
 
     def perform_similarity_analysis(self, df):
         if 'target_answer' in df.columns:
@@ -196,17 +190,6 @@ class SimilarityCalculator:
                 axis=1
             )
         return df
-
-    def calculate_and_aggregate(self, df):
-        df_with_similarity = self.perform_similarity_analysis(df)
-        result_aggregator = ResultAggregator()
-        aggregated_results = result_aggregator.aggregate(
-            df_with_similarity, 
-            'similarity_score', 
-            ['model', 'original_prompt'], 
-            ['response', 'similarity_score']
-        )
-        return aggregated_results
 
     def get_model(self, model_name: str):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -219,87 +202,53 @@ class SimilarityCalculator:
             model_output = model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
-
-
-class KeywordMatchCalculator:
-    def calculate_keyword_match_percent(self, target_keywords: list, actual_responses: list):
-        """
-        Calculates the fraction of target keywords found in each actual text response.
-
-        Args:
-        target_keywords (list): The list of target keywords.
-        actual_responses (list): The list of actual text responses.
-
-        Returns:
-        match_fractions (list): The list of keyword match fractions.
-        """
-        match_fractions = []
-        for response in actual_responses:
-            if not target_keywords or not response:
-                match_fractions.append(0)
-                continue
-
-            response_lower = response.lower()
-            matched_keywords = sum(keyword.lower() in response_lower for keyword in target_keywords)
-            match_fraction = matched_keywords / len(target_keywords)  # Fraction instead of percentage
-            match_fractions.append(match_fraction)
-        return match_fractions
     
-    def add_keyword_match_percentages(self, df, target_keywords_column='keywords'):
-        df['keyword_match_percent'] = df.apply(
-            lambda row: self.calculate_keyword_match_percent(row[target_keywords_column], [row['response']])[0]
-            if row[target_keywords_column] else None, 
+    def calculate_similarity_scores(self, df):
+        return df.apply(
+            lambda row: self.calculate_score([row['target_answer']], [row['response']])
+            if pd.notnull(row['target_answer']) else None, 
             axis=1
         )
-        return df
 
-    def calculate_and_aggregate(self, df):
-        df_with_keyword_matches = self.add_keyword_match_percentages(df, 'keywords')
-        result_aggregator = ResultAggregator()
-        aggregated_results = result_aggregator.aggregate(
-            df_with_keyword_matches, 
-            'keyword_match_percent', 
-            ['model', 'original_prompt'], 
-            ['response', 'keyword_match_percent']
+
+class KeywordMatchCalculator:    
+
+    def calculate_match_percent(self, target_keywords, actual_responses):
+        if not target_keywords or not actual_responses:
+            return 0
+        response = actual_responses[0].lower()
+        matched_keywords = sum(keyword.lower() in response for keyword in target_keywords)
+        return matched_keywords / len(target_keywords)
+
+    def calculate_keyword_scores(self, df):
+        return df.apply(
+            lambda row: self.calculate_match_percent(row['keywords'], [row['response']])
+            if 'keywords' in row and row['keywords'] else None, 
+            axis=1
         )
-        return aggregated_results
 
 class LLMRatingCalculator:
     def __init__(self, llm_evaluation_model):
         self.llm_evaluation_model = llm_evaluation_model
 
-    def rate_response_with_llm(self, row):
+    def rate_response(self, row):
         model, provider = self.llm_evaluation_model
-        target_answer = row['target_answer']
-        actual_response = row['response']
-
-        rating_prompt = f"Rate the following response on an integer scale from 1 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {target_answer}\nResponse: {actual_response}\nRating:"
-
+        rating_prompt = f"Rate the following response on an integer scale from 1 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {row['target_answer']}\nResponse: {row['response']}\nRating:"
         response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
         rating = response['choices'][0]['message']['content'].strip()
-
         try:
             return int(rating)
         except ValueError:
             logging.warning(f"Could not extract a valid rating from response: {rating}")
             return None
 
-    def add_ratings_to_df(self, df):
-        df['rating'] = df.apply(lambda row: self.rate_response_with_llm(row), axis=1)/10
-        return df
-    
-    def calculate_and_aggregate(self, df):
-        df_with_ratings = self.add_ratings_to_df(df)
-        result_aggregator = ResultAggregator()
-        aggregated_results = result_aggregator.aggregate(
-            df_with_ratings, 
-            'rating', 
-            ['model', 'original_prompt'], 
-            ['response', 'rating']
+    def calculate_ratings(self, df):
+        return df.apply(
+            lambda row: self.rate_response(row)
+            if pd.notnull(row['target_answer']) and pd.notnull(row['response']) else None, 
+            axis=1
         )
-        return aggregated_results
-
-
+        
 class LLMAnalysisPipeline:
     def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, temperature, 
     num_runs, is_file_path, similarity_model_name, num_perturbations, instructions):
@@ -315,10 +264,11 @@ class LLMAnalysisPipeline:
         all_prompts = df["prompt"].unique()  # Get all unique prompts
         perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
         df_responses = self.response_generator.process_prompts(df, perturbations_dict)
-        similarity_results = self.similarity_calculator.calculate_and_aggregate(df_responses)
-        keyword_results = self.keyword_match_calculator.calculate_and_aggregate(df_responses)
-        rating_results = self.llm_rating_calculator.calculate_and_aggregate(df_responses)
-        return similarity_results, keyword_results, rating_results
+        # Calculate metrics and assign to new columns
+        df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
+        df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
+        df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
+        return(df_responses)
 
 
 def del_file():
