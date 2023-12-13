@@ -87,6 +87,9 @@ class PerturbationGenerator:
         self.temperature = temperature
 
     def get_perturbations(self, prompt):
+        if self.num_perturbations == 0:
+            return [prompt]
+
         paraphrase_instruction = f"Generate a bulleted list of {self.num_perturbations + 1} sentences with the same meaning as \"{prompt}\""
         messages = [{"role": "user", "content": paraphrase_instruction}]
         response = LLMUtility.call_model(self.perturbation_model, messages, self.provider, self.temperature)
@@ -114,6 +117,35 @@ class ModelResponseGenerator:
         self.models_dict = models_dict
         self.instructions = instructions
         self.temperature = temperature
+    
+    def create_result_dict(self, model, original_prompt, actual_prompt, response, temperature, target_answer, keywords):
+        generated_text = response['choices'][0]['message']['content']
+        result = {
+            'model': model,
+            'original_prompt': original_prompt,
+            'response': generated_text,
+            'temperature': temperature,
+            'actual_prompt': actual_prompt,
+        }
+        if target_answer is not None:
+            result['target_answer'] = target_answer
+        if keywords is not None:
+            result['keywords'] = keywords
+        return result
+
+    def process_single_prompt(self, model, provider, original_prompt, actual_prompt, instructions, temperature, target_answer=None, keywords=None):
+        # If temperature is "variable", randomize it; otherwise, use the fixed value
+        temp_value = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
+
+        # Form the content to send to the model
+        message_content = f"{instructions} {actual_prompt}"
+
+        # Call the model and get the response
+        response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
+
+        # Create and return the result dictionary
+        return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords)
+
 
     def process_prompts(self, df, perturbations_dict):
         results = []
@@ -128,20 +160,7 @@ class ModelResponseGenerator:
                     results.append(self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords))
         return pd.DataFrame(results)
 
-    def create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords):
-        generated_text = response['choices'][0]['message']['content']
-        result = {
-        'model': model,
-        'original_prompt': original_prompt,
-        'response': generated_text,
-        'temperature': temperature,
-        'actual_prompt': actual_prompt,
-    }
-        if target_answer is not None:
-            result['target_answer'] = target_answer
-        if keywords is not None:
-            result['keywords'] = keywords
-        return result
+
 
 class ResultAggregator:
     def aggregate(self, df, metric_name, group_by_columns, result_columns):
@@ -153,41 +172,33 @@ class ResultAggregator:
         return best_worst_merged
 
 
+
+
 class SimilarityCalculator:
     def __init__(self, model_name):
         self.model_name = model_name
 
-    def calculate_similarity(target_texts: list, actual_texts: list, model_name: str):
-        """
-        Calculates the similarity scores between target and actual texts.
+    def calculate_similarity(self, target_texts: list, actual_texts: list):
+        model, tokenizer = self.get_model(self.model_name)
+        target_embeddings = self.encode_texts(target_texts, model, tokenizer)
+        actual_embeddings = self.encode_texts(actual_texts, model, tokenizer)
 
-        Args:
-        target_texts (list): The target outputs.
-        actual_texts (list): The actual outputs.
-        model_name (str): The HuggingFace model name for encoding texts.
-
-        Returns:
-        similarities (list): The list of similarity scores.
-        """
-        model, tokenizer = get_model(model_name)
-        target_embeddings = encode_texts(target_texts, model, tokenizer)
-        actual_embeddings = encode_texts(actual_texts, model, tokenizer)
-    
-      # Calculate cosine similarities
         similarities = [1 - cosine(target_embedding, actual_embedding)
-        for target_embedding, actual_embedding in zip(target_embeddings, actual_embeddings)]
+                        for target_embedding, actual_embedding in zip(target_embeddings, actual_embeddings)]
         return similarities
 
-    def perform_similarity_analysis(df, model_name):
+    def perform_similarity_analysis(self, df):
         if 'target_answer' in df.columns:
             logging.info("Performing similarity analysis.")
             df['similarity_score'] = df.apply(
-                lambda row: calculate_similarity([row['target_answer']], [row['response']], model_name) if pd.notnull(row['target_answer']) else None, 
+                lambda row: self.calculate_similarity([row['target_answer']], [row['response']])
+                if pd.notnull(row['target_answer']) else None, 
                 axis=1
             )
         return df
+
     def calculate_and_aggregate(self, df):
-        df_with_similarity = self.perform_similarity_analysis(df, self.model_name)
+        df_with_similarity = self.perform_similarity_analysis(df)
         result_aggregator = ResultAggregator()
         aggregated_results = result_aggregator.aggregate(
             df_with_similarity, 
@@ -197,37 +208,18 @@ class SimilarityCalculator:
         )
         return aggregated_results
 
-    def get_model(model_name: str):
-        """
-        Loads a HuggingFace model and tokenizer based on the model name.
-
-        Args:
-        model_name (str): The HuggingFace model name.
-
-        Returns:
-        model, tokenizer: The loaded model and tokenizer.
-        """
+    def get_model(self, model_name: str):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModel.from_pretrained(model_name)
         return model, tokenizer
 
-    def encode_texts(texts: list, model, tokenizer):
-        """
-        Encodes a list of texts into embeddings using the provided model and tokenizer.
-
-        Args:
-        texts (list): A list of strings to encode.
-        model: The HuggingFace model.
-        tokenizer: The HuggingFace tokenizer.
-
-        Returns:
-        embeddings: The encoded embeddings for the texts.
-        """
+    def encode_texts(self, texts: list, model, tokenizer):
         encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
         with torch.no_grad():
             model_output = model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
+
 
 
 class KeywordMatchCalculator:
@@ -319,7 +311,7 @@ class LLMAnalysisPipeline:
         self.data_loader = DataLoader(input_data)
         self.perturbation_generator = PerturbationGenerator(perturbation_model, num_perturbations, temperature)
         self.response_generator = ModelResponseGenerator(models_dict, instructions, temperature)
-        self.similarity_calculator = SimilarityCalculator('model_name_for_similarity')
+        self.similarity_calculator = SimilarityCalculator(similarity_model_name)
         self.keyword_match_calculator = KeywordMatchCalculator()
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
 
