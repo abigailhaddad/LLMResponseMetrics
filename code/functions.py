@@ -329,7 +329,7 @@ def rate_response_with_llm(row, llm_evaluation_model):
         return None
 
 def add_ratings_to_df(df, llm_evaluation_model):
-    df['rating'] = df.apply(lambda row: rate_response_with_llm(row, llm_evaluation_model), axis=1)
+    df['rating'] = df.apply(lambda row: rate_response_with_llm(row, llm_evaluation_model), axis=1)/10
     return df
 
 
