@@ -290,12 +290,8 @@ class LLMAnalysisPipeline:
         df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
         df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
         df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
+        del_file()
         return df_responses
-
-def del_file():
-    temp_files = glob.glob('litellm_*')
-    for file in temp_files:
-        os.remove(file)
 
 def aggregate_best_scores(df, score_column):
     # Define the columns to include in the output
@@ -310,3 +306,7 @@ def aggregate_best_scores(df, score_column):
     return df_best_scores
 
 
+def del_file():
+    temp_files = glob.glob('litellm_*')
+    for file in temp_files:
+        os.remove(file)
