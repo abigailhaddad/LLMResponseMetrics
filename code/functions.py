@@ -134,7 +134,7 @@ class ModelResponseGenerator:
         self.instructions = instructions
         self.temperature = temperature
     
-    def create_result_dict(self, model, original_prompt, actual_prompt, response, temperature, target_answer, keywords):
+    def create_result_dict(self, model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false):
         generated_text = response['choices'][0]['message']['content']
         result = {
             'model': model,
@@ -147,9 +147,11 @@ class ModelResponseGenerator:
             result['target_answer'] = target_answer
         if keywords is not None:
             result['keywords'] = keywords
+        if true_or_false is not None:
+            result['true_or_false'] = true_or_false
         return result
 
-    def process_single_prompt(self, model, provider, original_prompt, actual_prompt, instructions, temperature, target_answer=None, keywords=None):
+    def process_single_prompt(self, model, provider, original_prompt, actual_prompt, instructions, temperature, target_answer=None, keywords=None, true_or_false = None):
         # If temperature is "variable", randomize it; otherwise, use the fixed value
         temp_value = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
 
@@ -160,7 +162,7 @@ class ModelResponseGenerator:
         response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
 
         # Create and return the result dictionary
-        return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords)
+        return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords, true_or_false)
 
     def process_prompts(self, df, perturbations_dict, num_runs):
         results = []
@@ -168,12 +170,13 @@ class ModelResponseGenerator:
             prompt = row['prompt']
             target_answer = row.get('target_answer', None)
             keywords = row.get('keywords', None)
+            true_or_false = row.get('true_or_false', None)
             perturbations = perturbations_dict.get(prompt, [prompt])
 
             for model, provider in self.models_dict.items():
                 for perturbation in perturbations:
                     for _ in range(num_runs):
-                        result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords)
+                        result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords, true_or_false)
                         results.append(result)
 
         return pd.DataFrame(results)
@@ -251,11 +254,11 @@ class LLMRatingCalculator:
 
     def rate_response(self, row):
         model, provider = self.llm_evaluation_model
-        rating_prompt = f"Rate the following response on an integer scale from 1 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {row['target_answer']}\nResponse: {row['response']}\nRating:"
+        rating_prompt = f"Rate the following response on an integer scale from 0 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {row['target_answer']}\nResponse: {row['response']}\nRating:"
         response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
         rating = response['choices'][0]['message']['content'].strip()
         try:
-            return int(rating)
+            return int(rating)/10
         except ValueError:
             logging.warning(f"Could not extract a valid rating from response: {rating}")
             return None
@@ -296,7 +299,7 @@ def del_file():
 
 def aggregate_best_scores(df, score_column):
     # Define the columns to include in the output
-    relevant_columns = ['model', 'original_prompt', 'actual_prompt', 'response', score_column]
+    relevant_columns = ['model', 'original_prompt', 'actual_prompt', 'response', 'true_or_false', score_column]
 
     # Group by 'model' and 'original_prompt', and get the row with the best score in each group
     df_best_scores = df.loc[df.groupby(['model', 'original_prompt'])[score_column].idxmax()]
