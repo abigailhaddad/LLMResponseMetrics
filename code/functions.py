@@ -282,18 +282,28 @@ class LLMAnalysisPipeline:
         df = self.data_loader.load_data()
         all_prompts = df["prompt"].unique()
         perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
-        # df_responses = self.response_generator.process_prompts(df, perturbations_dict, self.num_runs)
+        df_responses = self.response_generator.process_prompts(df, perturbations_dict, self.num_runs)
         # Calculate metrics and assign to new columns
-        # df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
-        # df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
-        # df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
-        # return df_responses
-        return perturbations_dict
-
+        df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
+        df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
+        df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
+        return df_responses
 
 def del_file():
     temp_files = glob.glob('litellm_*')
     for file in temp_files:
         os.remove(file)
+
+def aggregate_best_scores(df, score_column):
+    # Define the columns to include in the output
+    relevant_columns = ['model', 'original_prompt', 'actual_prompt', 'response', score_column]
+
+    # Group by 'model' and 'original_prompt', and get the row with the best score in each group
+    df_best_scores = df.loc[df.groupby(['model', 'original_prompt'])[score_column].idxmax()]
+
+    # Select only relevant columns for output
+    df_best_scores = df_best_scores[relevant_columns]
+
+    return df_best_scores
 
 
