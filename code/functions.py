@@ -108,7 +108,16 @@ class PerturbationGenerator:
     def get_perturbations_for_all_prompts(self, prompts):
         perturbations_dict = {}
         for prompt in prompts:
-            perturbations_dict[prompt] = self.get_perturbations(prompt)
+            perturbations = [prompt]  # Include the original prompt
+            if self.num_perturbations > 0:
+                paraphrased_perturbations = self.get_perturbations(prompt)
+                perturbations.extend(paraphrased_perturbations)
+            
+            perturbations_dict[prompt] = perturbations
+
+            # Debug print statement
+            print(f"Prompt: '{prompt}', Perturbations: {len(perturbations)}")
+
         return perturbations_dict
 
 
@@ -146,18 +155,24 @@ class ModelResponseGenerator:
         # Create and return the result dictionary
         return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords)
 
-
-    def process_prompts(self, df, perturbations_dict):
+    def process_prompts(self, df, perturbations_dict, num_runs):
         results = []
         for index, row in df.iterrows():
             prompt = row['prompt']
             target_answer = row.get('target_answer', None)
             keywords = row.get('keywords', None)
-            perturbations = perturbations_dict.get(prompt, [prompt])  # Use the original prompt as a fallback
+            perturbations = perturbations_dict.get(prompt, [prompt])
 
             for model, provider in self.models_dict.items():
                 for perturbation in perturbations:
-                    results.append(self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords))
+                    for _ in range(num_runs):
+                        result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords)
+                        results.append(result)
+
+                        # Debug print statements
+                        print(f"Processing: Model={model}, Prompt='{prompt}', Perturbation='{perturbation}', Run={_ + 1}")
+                        print(f"Current Results Count: {len(results)}")
+
         return pd.DataFrame(results)
 
 
@@ -252,6 +267,7 @@ class LLMRatingCalculator:
 class LLMAnalysisPipeline:
     def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, temperature, 
     num_runs, is_file_path, similarity_model_name, num_perturbations, instructions):
+        self.num_runs = num_runs
         self.data_loader = DataLoader(input_data)
         self.perturbation_generator = PerturbationGenerator(perturbation_model, num_perturbations, temperature)
         self.response_generator = ModelResponseGenerator(models_dict, instructions, temperature)
@@ -261,14 +277,14 @@ class LLMAnalysisPipeline:
 
     def run_pipeline(self):
         df = self.data_loader.load_data()
-        all_prompts = df["prompt"].unique()  # Get all unique prompts
+        all_prompts = df["prompt"].unique()
         perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
-        df_responses = self.response_generator.process_prompts(df, perturbations_dict)
+        df_responses = self.response_generator.process_prompts(df, perturbations_dict, self.num_runs)
         # Calculate metrics and assign to new columns
-        df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
-        df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
-        df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
-        return(df_responses)
+        # df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
+        # df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
+        # df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
+        return df_responses
 
 
 def del_file():
