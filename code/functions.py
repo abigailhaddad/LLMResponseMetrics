@@ -93,16 +93,25 @@ class PerturbationGenerator:
         paraphrase_instruction = f"Generate a bulleted list of {self.num_perturbations + 1} sentences with the same meaning as \"{prompt}\""
         messages = [{"role": "user", "content": paraphrase_instruction}]
         response = LLMUtility.call_model(self.perturbation_model, messages, self.provider, self.temperature)
-        return self.parse_model_response(response)
+        perturbations = self.parse_model_response(response)
+
+        # Check if the number of perturbations is correct
+        if len(perturbations) != self.num_perturbations + 1:
+            print(f"Warning: Incorrect number of perturbations for prompt '{prompt}'. Expected {self.num_perturbations + 1}, got {len(perturbations)}")
+            print("Response content:")
+            print(response['choices'][0]['message']['content'])
+
+        return perturbations
 
     def parse_model_response(self, response):
         content = response['choices'][0]['message']['content']
-        if content.startswith('1.'):
-            perturbations = re.split(r'\n\d+\.\s*', content)
-            perturbations = [pert.strip() for pert in perturbations if pert.strip()]
+        # Handling both numbered list and bullet points
+        if content.startswith('1.') or content.strip().startswith('-'):
+            # Split by newline and strip leading/trailing spaces and list markers
+            perturbations = [pert.strip('* ').strip() for pert in content.split('\n') if pert.strip()]
         else:
-            perturbations = content.split('\n- ')[1:]
-            perturbations = [pert.strip('* ') for pert in perturbations]
+            # Fallback in case of unexpected formatting
+            perturbations = [content.strip()]
         return perturbations
 
     def get_perturbations_for_all_prompts(self, prompts):
@@ -114,11 +123,9 @@ class PerturbationGenerator:
                 perturbations.extend(paraphrased_perturbations)
             
             perturbations_dict[prompt] = perturbations
+            return perturbations_dict
 
-            # Debug print statement
-            print(f"Prompt: '{prompt}', Perturbations: {len(perturbations)}")
 
-        return perturbations_dict
 
 
 class ModelResponseGenerator:
@@ -168,10 +175,6 @@ class ModelResponseGenerator:
                     for _ in range(num_runs):
                         result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords)
                         results.append(result)
-
-                        # Debug print statements
-                        print(f"Processing: Model={model}, Prompt='{prompt}', Perturbation='{perturbation}', Run={_ + 1}")
-                        print(f"Current Results Count: {len(results)}")
 
         return pd.DataFrame(results)
 
@@ -279,12 +282,13 @@ class LLMAnalysisPipeline:
         df = self.data_loader.load_data()
         all_prompts = df["prompt"].unique()
         perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
-        df_responses = self.response_generator.process_prompts(df, perturbations_dict, self.num_runs)
+        # df_responses = self.response_generator.process_prompts(df, perturbations_dict, self.num_runs)
         # Calculate metrics and assign to new columns
         # df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
         # df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
         # df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
-        return df_responses
+        # return df_responses
+        return perturbations_dict
 
 
 def del_file():
