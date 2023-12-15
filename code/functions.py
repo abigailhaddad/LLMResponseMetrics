@@ -185,7 +185,7 @@ class PerturbationGenerator:
                 perturbations.extend(paraphrased_perturbations)
             
             perturbations_dict[prompt] = perturbations
-            return perturbations_dict
+        return perturbations_dict
 
 
 
