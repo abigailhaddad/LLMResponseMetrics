@@ -202,10 +202,10 @@ class ModelResponseGenerator:
             If "variable", a random value between 0.0 and 1.0 will be used for each prompt.
 
     Methods:
-        create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false):
+        create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false, run_number):
             Creates a dictionary containing the result information for a single prompt.
 
-        process_single_prompt(model, provider, original_prompt, actual_prompt, instructions, temperature, target_answer=None, keywords=None, true_or_false=None):
+        process_single_prompt(model, provider, original_prompt, actual_prompt, instructions, temperature, run_number, target_answer=None, keywords=None, true_or_false=None):
             Processes a single prompt by calling the model and returning the result dictionary.
 
         process_prompts(df, perturbations_dict, num_runs):
@@ -218,7 +218,7 @@ class ModelResponseGenerator:
         self.instructions = instructions
         self.temperature = temperature
     
-    def create_result_dict(self, model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false):
+    def create_result_dict(self, model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false, run_number):
         """
         Creates a dictionary containing the result information for a single prompt.
 
@@ -231,6 +231,7 @@ class ModelResponseGenerator:
             target_answer (str or None): The target answer for the prompt.
             keywords (str or None): The keywords associated with the prompt.
             true_or_false (bool or None): Whether this is a prompt the model knows the answer to.
+            run_number (int): The current run count
 
         Returns:
             dict: The result dictionary containing the prompt information and model response.
@@ -243,6 +244,7 @@ class ModelResponseGenerator:
             'response': generated_text,
             'temperature': temperature,
             'actual_prompt': actual_prompt,
+            'run_number': run_number
         }
         if target_answer is not None:
             result['target_answer'] = target_answer
@@ -252,7 +254,7 @@ class ModelResponseGenerator:
             result['true_or_false'] = true_or_false
         return result
 
-    def process_single_prompt(self, model, provider, original_prompt, actual_prompt, instructions, temperature, target_answer=None, keywords=None, true_or_false=None):
+    def process_single_prompt(self, model, provider, original_prompt, actual_prompt, instructions, temperature, run_number, target_answer=None, keywords=None, true_or_false=None):
         """
         Processes a single prompt by calling the model and returning the result dictionary.
 
@@ -282,7 +284,7 @@ class ModelResponseGenerator:
         response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
 
         # Create and return the result dictionary
-        return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords, true_or_false)
+        return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords, true_or_false, run_number)
 
     def process_prompts(self, df, perturbations_dict, num_runs):
         """
@@ -307,8 +309,8 @@ class ModelResponseGenerator:
 
             for model, provider in self.models_dict.items():
                 for perturbation in perturbations:
-                    for _ in range(num_runs):
-                        result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, target_answer, keywords, true_or_false)
+                    for run_number in range(num_runs):
+                        result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, run_number, target_answer, keywords, true_or_false)
                         results.append(result)
 
         return pd.DataFrame(results)

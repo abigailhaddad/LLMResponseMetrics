@@ -82,6 +82,6 @@ pipeline = LLMAnalysisPipeline(
 ### Analyzing the Output
 The output DataFrame `df_responses` contains the responses along with various metrics calculated. You can further analyze these results using your preferred data analysis tools.
 
-## Contributing
+## Contact
 If you are using this or want to use this, please get in touch - abigail dot haddad at gmail dot com. 
 
