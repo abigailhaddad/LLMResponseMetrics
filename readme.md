@@ -4,7 +4,8 @@
 
 The LLM Analysis Pipeline is a tool designed to evaluate different methods for testing whether an LLM 'knows the answer' to a given question. This is done via having an initial set of questions and their target answers, prompting an LLM to answer the same question (but asked in different ways), and then taking the best answers to each question from each model, given three different evaluation methods.
 
-Some of the questions in the input data are 'true', meaning that the LLM knows the answer and some are 'false', meaning that it does not.
+Some of the questions in the input data are 'true', meaning that the we already know the LLM knows the answer and some are 'false', meaning that it does not. But if that's not how you want to use this, the pipeline will still run without that, you just won't be able to make a graph in the demo.ipynb workbook. 
+
 
 ## Core Components and Evaluation Methods
 1. **Keyword Matching**: Analyzes the presence of predefined keywords in the LLM's responses.
@@ -75,13 +76,6 @@ The LLM (Large Language Model) Analysis Pipeline is a Python-based toolkit desig
 - **Similarity Scoring**: Calculate similarity scores between target and actual responses.
 - **Keyword Matching**: Perform keyword analysis on the responses.
 - **Rating Calculation**: Rate responses based on their similarity to target answers.
-
-## Requirements
-- Python 3.6 or later
-- pandas
-- transformers (Hugging Face)
-- torch
-- scipy
 
 ## Installation
 1. Clone the repository to your local machine.
