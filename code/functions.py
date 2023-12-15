@@ -108,7 +108,6 @@ class PerturbationGenerator:
         perturbation_model (str): The name of the perturbation model.
         provider (str): The provider of the perturbation model.
         num_perturbations (int): The number of perturbations to generate.
-        temperature (float): The temperature parameter for generating perturbations.
 
     Methods:
         get_perturbations(prompt): Generates perturbations for a given prompt.
@@ -116,11 +115,11 @@ class PerturbationGenerator:
         get_perturbations_for_all_prompts(prompts): Generates perturbations for multiple prompts.
     """
 
-    def __init__(self, perturbation_model, num_perturbations, temperature):
+    def __init__(self, perturbation_model, num_perturbations):
         self.perturbation_model = perturbation_model[0]
         self.provider = perturbation_model[1]
         self.num_perturbations = num_perturbations
-        self.temperature = temperature
+        self.temperature = 0
 
     def get_perturbations(self, prompt):
         """
@@ -134,7 +133,7 @@ class PerturbationGenerator:
         """
         if self.num_perturbations == 0:
             return [prompt]
-
+        
         paraphrase_instruction = f"Generate a bulleted list of {self.num_perturbations + 1} sentences with the same meaning as \"{prompt}\""
         messages = [{"role": "user", "content": paraphrase_instruction}]
         response = LLMUtility.call_model(self.perturbation_model, messages, self.provider, self.temperature)
@@ -285,6 +284,7 @@ class ModelResponseGenerator:
 
         # Create and return the result dictionary
         return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords, true_or_false, run_number)
+
 
     def process_prompts(self, df, perturbations_dict, num_runs):
         """
@@ -488,7 +488,7 @@ class LLMRatingCalculator:
         """
         model, provider = self.llm_evaluation_model
         rating_prompt = f"Rate the following response on an integer scale from 0 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {row['target_answer']}\nResponse: {row['response']}\nRating:"
-        response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
+        response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, 0)
         rating = response['choices'][0]['message']['content'].strip()
         try:
             return int(rating)/10
@@ -538,7 +538,7 @@ class LLMAnalysisPipeline:
     num_runs, is_file_path, similarity_model_name, num_perturbations, instructions):
         self.num_runs = num_runs
         self.data_loader = DataLoader(input_data)
-        self.perturbation_generator = PerturbationGenerator(perturbation_model, num_perturbations, temperature)
+        self.perturbation_generator = PerturbationGenerator(perturbation_model, num_perturbations)
         self.response_generator = ModelResponseGenerator(models_dict, instructions, temperature)
         self.similarity_calculator = SimilarityCalculator(similarity_model_name)
         self.keyword_match_calculator = KeywordMatchCalculator()
