@@ -60,23 +60,6 @@ pipeline = LLMAnalysisPipeline(
 - `litellm_demo.py`: A simple script showcasing basic usage of the `litellm` library for API calls.
 - `keys/`: Directory for storing API keys.
 
-
-
-# README for LLM Analysis Pipeline
-
-## Overview
-The LLM (Large Language Model) Analysis Pipeline is a Python-based toolkit designed to process, perturb, and evaluate language model outputs. It's tailored for researchers and developers working with language models like GPT-3, GPT-4, or similar, providing tools for generating perturbed prompts, calling language models, and evaluating their outputs using various metrics.
-
-## Features
-- **Data Loading**: Load prompts from CSV files or direct lists.
-- **API Key Handling**: Securely read API keys for different language model providers.
-- **Perturbation Generation**: Create perturbations of prompts to test language model robustness.
-- **Response Generation**: Generate responses from various language models.
-- **Result Aggregation**: Aggregate results based on specific metrics.
-- **Similarity Scoring**: Calculate similarity scores between target and actual responses.
-- **Keyword Matching**: Perform keyword analysis on the responses.
-- **Rating Calculation**: Rate responses based on their similarity to target answers.
-
 ## Installation
 1. Clone the repository to your local machine.
 2. Install the required packages using `pip`:
@@ -94,8 +77,7 @@ The LLM (Large Language Model) Analysis Pipeline is a Python-based toolkit desig
 ### Running the Pipeline
 1. Import the necessary classes from `functions.py`.
 2. Initialize the `LLMAnalysisPipeline` with your specific configurations.
-3. Call the `run_pipeline` method to process the data and generate responses or use the demo.ipynb notebook.
-
+3. Call the `run_pipeline` method to process the data and generate responses or use the `demo.ipynb` notebook.
 
 ### Analyzing the Output
 The output DataFrame `df_responses` contains the responses along with various metrics calculated. You can further analyze these results using your preferred data analysis tools.
