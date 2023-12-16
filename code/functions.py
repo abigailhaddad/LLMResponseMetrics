@@ -478,7 +478,7 @@ class LLMAnalysisPipeline:
         run_pipeline(): Runs the LLM analysis pipeline and returns the processed data.
 
     """
-    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_times, temperature):
+    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_runs, temperature):
         self.data_loader = DataLoader(input_data)
         self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(perturbation_model[0], perturbation_model[1])
@@ -489,7 +489,7 @@ class LLMAnalysisPipeline:
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
 
         # Pass the calculator instances to ModelResponseGenerator
-        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_times, self.temperature, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator)
+        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_runs, self.temperature, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator)
 
     def run_pipeline(self):
         """
