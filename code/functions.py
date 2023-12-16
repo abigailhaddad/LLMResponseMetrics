@@ -115,10 +115,10 @@ class PerturbationGenerator:
         get_perturbations_for_all_prompts(prompts): Generates perturbations for multiple prompts.
     """
 
-    def __init__(self, perturbation_model, num_perturbations):
+    def __init__(self, perturbation_model):
         self.perturbation_model = perturbation_model[0]
         self.provider = perturbation_model[1]
-        self.num_perturbations = num_perturbations
+        self.num_perturbations = 10
         self.temperature = 0
 
     def get_perturbations(self, prompt):
@@ -512,6 +512,8 @@ class LLMRatingCalculator:
             if pd.notnull(row['target_answer']) and pd.notnull(row['response']) else None, 
             axis=1
         )
+    
+
         
 class LLMAnalysisPipeline:
     """
@@ -526,7 +528,6 @@ class LLMAnalysisPipeline:
         num_runs (int): Number of runs for response generation.
         is_file_path (bool): Flag indicating whether the input data is a file path.
         similarity_model_name (str): Name of the similarity model.
-        num_perturbations (int): Number of perturbations to generate for each prompt.
         instructions (str): Instructions for response generation.
 
     Methods:
@@ -535,10 +536,10 @@ class LLMAnalysisPipeline:
     """
 
     def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, temperature, 
-    num_runs, is_file_path, similarity_model_name, num_perturbations, instructions):
+    num_runs, is_file_path, similarity_model_name, instructions):
         self.num_runs = num_runs
         self.data_loader = DataLoader(input_data)
-        self.perturbation_generator = PerturbationGenerator(perturbation_model, num_perturbations)
+        self.perturbation_generator = PerturbationGenerator(perturbation_model)
         self.response_generator = ModelResponseGenerator(models_dict, instructions, temperature)
         self.similarity_calculator = SimilarityCalculator(similarity_model_name)
         self.keyword_match_calculator = KeywordMatchCalculator()
