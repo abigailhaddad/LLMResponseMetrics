@@ -211,16 +211,17 @@ class ModelResponseGenerator:
             Processes multiple prompts from a DataFrame, applying perturbations and running the models.
 
     """
-    def __init__(self, models_dict, instructions, max_runs, similarity_calculator, keyword_match_calculator, llm_rating_calculator):
+    def __init__(self, models_dict, instructions, max_runs, similarity_calculator, keyword_match_calculator, llm_rating_calculator, temperature):
         self.models_dict = models_dict
         self.instructions = instructions
         self.max_runs = max_runs
         self.similarity_calculator = similarity_calculator
         self.keyword_match_calculator = keyword_match_calculator
         self.llm_rating_calculator = llm_rating_calculator
+        self.temperature = temperature
 
     
-    def process_prompts_with_realtime_evaluation(self, df, perturbations_dict, similarity_calculator, keyword_match_calculator, llm_rating_calculator):
+    def process_prompts_with_realtime_evaluation(self, df, perturbations_dict, similarity_calculator, keyword_match_calculator, llm_rating_calculator, temperature):
         all_results = []
         for index, row in df.iterrows():
             prompt = row['prompt']
@@ -233,7 +234,7 @@ class ModelResponseGenerator:
                 for run_number in range(self.max_runs):
                     # Randomly select a perturbation for each response
                     actual_prompt = random.choice(perturbations)
-                    temp_value = random.uniform(0.0, 1.0)  # Randomize temperature for each prompt
+                    temp_value = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
                     message_content = f"{self.instructions} {actual_prompt}"
                     response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
                     
@@ -477,8 +478,9 @@ class LLMAnalysisPipeline:
         run_pipeline(): Runs the LLM analysis pipeline and returns the processed data.
 
     """
-    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_times):
+    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_times, temperature):
         self.data_loader = DataLoader(input_data)
+        self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(perturbation_model[0], perturbation_model[1])
         
         # Create calculator instances
@@ -487,7 +489,7 @@ class LLMAnalysisPipeline:
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
 
         # Pass the calculator instances to ModelResponseGenerator
-        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_times, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator)
+        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_times, self.temperature, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator)
 
     def run_pipeline(self):
         """
