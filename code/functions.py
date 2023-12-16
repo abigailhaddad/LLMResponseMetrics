@@ -478,8 +478,8 @@ class LLMAnalysisPipeline:
         run_pipeline(): Runs the LLM analysis pipeline and returns the processed data.
 
     """
-    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_runs, temperature):
-        self.data_loader = DataLoader(input_data)
+    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_runs, temperature, is_file_path):
+        self.data_loader = DataLoader(input_data, is_file_path)
         self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(perturbation_model[0], perturbation_model[1])
         
