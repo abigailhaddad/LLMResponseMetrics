@@ -211,95 +211,17 @@ class ModelResponseGenerator:
             Processes multiple prompts from a DataFrame, applying perturbations and running the models.
 
     """
-
-    def __init__(self, models_dict, instructions, temperature):
+    def __init__(self, models_dict, instructions, max_runs, similarity_calculator, keyword_match_calculator, llm_rating_calculator):
         self.models_dict = models_dict
         self.instructions = instructions
-        self.temperature = temperature
+        self.max_runs = max_runs
+        self.similarity_calculator = similarity_calculator
+        self.keyword_match_calculator = keyword_match_calculator
+        self.llm_rating_calculator = llm_rating_calculator
+
     
-    def create_result_dict(self, model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false, run_number):
-        """
-        Creates a dictionary containing the result information for a single prompt.
-
-        Args:
-            model (str): The name of the model.
-            original_prompt (str): The original prompt.
-            actual_prompt (str): The perturbed prompt.
-            response (dict): The response received from the model.
-            temperature (float): The temperature value used for generating the response.
-            target_answer (str or None): The target answer for the prompt.
-            keywords (str or None): The keywords associated with the prompt.
-            true_or_false (bool or None): Whether this is a prompt the model knows the answer to.
-            run_number (int): The current run count
-
-        Returns:
-            dict: The result dictionary containing the prompt information and model response.
-
-        """
-        generated_text = response['choices'][0]['message']['content']
-        result = {
-            'model': model,
-            'original_prompt': original_prompt,
-            'response': generated_text,
-            'temperature': temperature,
-            'actual_prompt': actual_prompt,
-            'run_number': run_number
-        }
-        if target_answer is not None:
-            result['target_answer'] = target_answer
-        if keywords is not None:
-            result['keywords'] = keywords
-        if true_or_false is not None:
-            result['true_or_false'] = true_or_false
-        return result
-
-    def process_single_prompt(self, model, provider, original_prompt, actual_prompt, instructions, temperature, run_number, target_answer=None, keywords=None, true_or_false=None):
-        """
-        Processes a single prompt by calling the model and returning the result dictionary.
-
-        Args:
-            model (str): The name of the model.
-            provider (str): The provider of the model.
-            original_prompt (str): The original prompt.
-            actual_prompt (str): The perturbed prompt.
-            instructions (str): The instructions to be included in the message content sent to the model.
-            temperature (float or str): The temperature value to control the randomness of the model's output.
-                If "variable", a random value between 0.0 and 1.0 will be used for each prompt.
-            target_answer (str or None): The target answer for the prompt.
-            keywords (str or None): The keywords associated with the prompt.
-            true_or_false (bool or None): Whether this is a prompt the model knows the answer to.
-
-        Returns:
-            dict: The result dictionary containing the prompt information and model response.
-
-        """
-        # If temperature is "variable", randomize it; otherwise, use the fixed value
-        temp_value = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
-
-        # Form the content to send to the model
-        message_content = f"{instructions} {actual_prompt}"
-
-        # Call the model and get the response
-        response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
-
-        # Create and return the result dictionary
-        return self.create_result_dict(model, original_prompt, actual_prompt, response, temp_value, target_answer, keywords, true_or_false, run_number)
-
-
-    def process_prompts(self, df, perturbations_dict, num_runs):
-        """
-        Processes multiple prompts from a DataFrame, applying perturbations and running the models.
-
-        Args:
-            df (pd.DataFrame): The DataFrame containing the prompts.
-            perturbations_dict (dict): A dictionary mapping prompts to their respective perturbations.
-            num_runs (int): The number of times to run each perturbation.
-
-        Returns:
-            pd.DataFrame: The DataFrame containing the results of the model responses.
-
-        """
-        results = []
+    def process_prompts_with_realtime_evaluation(self, df, perturbations_dict, similarity_calculator, keyword_match_calculator, llm_rating_calculator):
+        all_results = []
         for index, row in df.iterrows():
             prompt = row['prompt']
             target_answer = row.get('target_answer', None)
@@ -308,13 +230,36 @@ class ModelResponseGenerator:
             perturbations = perturbations_dict.get(prompt, [prompt])
 
             for model, provider in self.models_dict.items():
-                for perturbation in perturbations:
-                    for run_number in range(num_runs):
-                        result = self.process_single_prompt(model, provider, prompt, perturbation, self.instructions, self.temperature, run_number, target_answer, keywords, true_or_false)
-                        results.append(result)
+                for run_number in range(self.max_runs):
+                    # Randomly select a perturbation for each response
+                    actual_prompt = random.choice(perturbations)
+                    temp_value = random.uniform(0.0, 1.0)  # Randomize temperature for each prompt
+                    message_content = f"{self.instructions} {actual_prompt}"
+                    response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
+                    
+                    # Evaluate the response
+                    similarity_score = similarity_calculator.calculate_score([target_answer], [response])
+                    keyword_score = keyword_match_calculator.calculate_match_percent(keywords, [response])
+                    llm_rating = llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
 
-        return pd.DataFrame(results)
+                    result = {
+                        'model': model,
+                        'original_prompt': prompt,
+                        'response': response,
+                        'temperature': temp_value,
+                        'actual_prompt': actual_prompt,
+                        'run_number': run_number,
+                        'similarity_score': similarity_score,
+                        'keyword_score': keyword_score,
+                        'llm_rating': llm_rating,
+                        'true_or_false': true_or_false
 
+                    }
+                    all_results.append(result)
+
+
+        return pd.DataFrame(all_results)
+    
 
 
 class ResultAggregator:
@@ -512,8 +457,6 @@ class LLMRatingCalculator:
             if pd.notnull(row['target_answer']) and pd.notnull(row['response']) else None, 
             axis=1
         )
-    
-
         
 class LLMAnalysisPipeline:
     """
@@ -525,7 +468,7 @@ class LLMAnalysisPipeline:
         perturbation_model (str): Name of the perturbation model.
         llm_evaluation_model (str): Name of the LLM evaluation model.
         temperature (float): Temperature parameter for response generation.
-        num_runs (int): Number of runs for response generation.
+        max_runs (int): Maximum number of runs for response generation.
         is_file_path (bool): Flag indicating whether the input data is a file path.
         similarity_model_name (str): Name of the similarity model.
         instructions (str): Instructions for response generation.
@@ -534,16 +477,17 @@ class LLMAnalysisPipeline:
         run_pipeline(): Runs the LLM analysis pipeline and returns the processed data.
 
     """
-
-    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, temperature, 
-    num_runs, is_file_path, similarity_model_name, instructions):
-        self.num_runs = num_runs
+    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_times):
         self.data_loader = DataLoader(input_data)
-        self.perturbation_generator = PerturbationGenerator(perturbation_model)
-        self.response_generator = ModelResponseGenerator(models_dict, instructions, temperature)
+        self.perturbation_generator = PerturbationGenerator(perturbation_model[0], perturbation_model[1])
+        
+        # Create calculator instances
         self.similarity_calculator = SimilarityCalculator(similarity_model_name)
         self.keyword_match_calculator = KeywordMatchCalculator()
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
+
+        # Pass the calculator instances to ModelResponseGenerator
+        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_times, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator)
 
     def run_pipeline(self):
         """
@@ -556,11 +500,7 @@ class LLMAnalysisPipeline:
         df = self.data_loader.load_data()
         all_prompts = df["prompt"].unique()
         perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
-        df_responses = self.response_generator.process_prompts(df, perturbations_dict, self.num_runs)
-        # Calculate metrics and assign to new columns
-        df_responses['similarity_scores'] = self.similarity_calculator.calculate_similarity_scores(df_responses)
-        df_responses['keyword_scores'] = self.keyword_match_calculator.calculate_keyword_scores(df_responses)
-        df_responses['llm_ratings'] = self.llm_rating_calculator.calculate_ratings(df_responses)
+        df_responses = self.response_generator.process_prompts_with_realtime_evaluation(df, perturbations_dict)
         del_file()
         return df_responses
 
