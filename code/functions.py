@@ -115,9 +115,9 @@ class PerturbationGenerator:
         get_perturbations_for_all_prompts(prompts): Generates perturbations for multiple prompts.
     """
 
-    def __init__(self, perturbation_model):
-        self.perturbation_model = perturbation_model[0]
-        self.provider = perturbation_model[1]
+    def __init__(self, model, provider):
+        self.perturbation_model = model
+        self.provider = provider
         self.num_perturbations = 10
         self.temperature = 0
 
@@ -220,8 +220,7 @@ class ModelResponseGenerator:
         self.llm_rating_calculator = llm_rating_calculator
         self.temperature = temperature
 
-    
-    def process_prompts_with_realtime_evaluation(self, df, perturbations_dict, similarity_calculator, keyword_match_calculator, llm_rating_calculator, temperature):
+    def process_prompts_with_realtime_evaluation(self, df, perturbations_dict):
         all_results = []
         for index, row in df.iterrows():
             prompt = row['prompt']
@@ -232,16 +231,15 @@ class ModelResponseGenerator:
 
             for model, provider in self.models_dict.items():
                 for run_number in range(self.max_runs):
-                    # Randomly select a perturbation for each response
                     actual_prompt = random.choice(perturbations)
-                    temp_value = random.uniform(0.0, 1.0) if temperature == "variable" else temperature
+                    temp_value = random.uniform(0.0, 1.0) if self.temperature == "variable" else self.temperature
                     message_content = f"{self.instructions} {actual_prompt}"
                     response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
                     
                     # Evaluate the response
-                    similarity_score = similarity_calculator.calculate_score([target_answer], [response])
-                    keyword_score = keyword_match_calculator.calculate_match_percent(keywords, [response])
-                    llm_rating = llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
+                    similarity_score = self.similarity_calculator.calculate_score([target_answer], [response])
+                    keyword_score = self.keyword_match_calculator.calculate_match_percent(keywords, [response])
+                    llm_rating = self.llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
 
                     result = {
                         'model': model,
@@ -254,13 +252,11 @@ class ModelResponseGenerator:
                         'keyword_score': keyword_score,
                         'llm_rating': llm_rating,
                         'true_or_false': true_or_false
-
                     }
                     all_results.append(result)
 
-
         return pd.DataFrame(all_results)
-    
+
 
 
 class ResultAggregator:
@@ -301,10 +297,18 @@ class SimilarityCalculator:
     """
     A class that calculates similarity scores between target texts and actual texts using a pre-trained model.
     """
-
     def __init__(self, model_name):
         self.model_name = model_name
-
+        self.tokenizer, self.model = self.get_model(self.model_name)
+    
+    def get_model(self, model_name: str):
+        """
+        Retrieves the pre-trained model and tokenizer.
+        """
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModel.from_pretrained(model_name)
+        return tokenizer, model
+    
     def calculate_score(self, target_texts, actual_texts):
         """
         Calculates the similarity score between target texts and actual texts.
@@ -340,19 +344,6 @@ class SimilarityCalculator:
             )
         return df
 
-    def get_model(self, model_name: str):
-        """
-        Retrieves the pre-trained model and tokenizer.
-
-        Args:
-            model_name (str): Name of the pre-trained model.
-
-        Returns:
-            tuple: Tuple containing the model and tokenizer.
-        """
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModel.from_pretrained(model_name)
-        return model, tokenizer
 
     def encode_texts(self, texts: list, model, tokenizer):
         """
