@@ -7,6 +7,9 @@ import torch
 from scipy.spatial.distance import cosine
 import glob
 import logging
+import litellm
+
+litellm.set_verbose=True
 
 # Basic logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -94,10 +97,14 @@ class LLMUtility:
         The API response.
         """
         # Set the API key for the provider
-        api_key = LLMUtility.read_api_key(provider)
-        # Call the completion endpoint with the provided parameters
-        response = completion(model=model, messages=messages, temperature=temperature, api_key = api_key)
-        return response
+        api_key = LLMUtility.read_api_key(provider)  
+        try:
+            response = completion(model=model, messages=messages, temperature=temperature, api_key=api_key)
+            logging.info(f"API call successful. Model: {model}, Provider: {provider}, Response: {response}")
+            return response
+        except Exception as e:
+            logging.error(f"API call failed. Model: {model}, Provider: {provider}, Error: {e}")
+            return None
 
 
 class PerturbationGenerator:
@@ -424,11 +431,13 @@ class LLMRatingCalculator:
 
         """
         model, provider = self.llm_evaluation_model
-        rating_prompt = f"Rate the following response on an integer scale from 0 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {row['target_answer']}\nResponse: {row['response']}\nRating:"
-        response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, 0)
-        rating = response['choices'][0]['message']['content'].strip()
         try:
-            return int(rating)/10
+            rating_prompt = f"Rate the following response... {row['response']}\nRating:"
+            logging.info(f"Sending rating prompt: {rating_prompt}")
+            response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, 0)
+            rating = response['choices'][0]['message']['content'].strip()
+            logging.info(f"Received rating: {rating}")
+            return int(rating) / 10
         except ValueError:
             logging.warning(f"Could not extract a valid rating from response: {rating}")
             return None
@@ -480,7 +489,8 @@ class LLMAnalysisPipeline:
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
 
         # Pass the calculator instances to ModelResponseGenerator
-        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_runs, self.temperature, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator)
+        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_runs, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator, self.temperature)
+
 
     def run_pipeline(self):
         """
