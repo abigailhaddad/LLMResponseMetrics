@@ -9,7 +9,7 @@ import glob
 import logging
 import litellm
 
-litellm.set_verbose=True
+litellm.set_verbose=False
 
 # Basic logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -243,9 +243,7 @@ class ModelResponseGenerator:
                     temp_value = random.uniform(0.0, 1.0) if self.temperature == "variable" else self.temperature
                     message_content = f"{self.instructions} {actual_prompt}"
                     response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)['choices'][0]['message']['content']
-                    
                     # Evaluate the response
-                    print(target_answer, response)
                     similarity_score = self.similarity_calculator.calculate_score(target_answer, response)
                     keyword_score = self.keyword_match_calculator.calculate_match_percent(keywords, response)
                     llm_rating = self.llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
@@ -260,7 +258,8 @@ class ModelResponseGenerator:
                         'similarity_score': similarity_score,
                         'keyword_score': keyword_score,
                         'llm_rating': llm_rating,
-                        'true_or_false': true_or_false
+                        'true_or_false': true_or_false,
+                        'keywords': keywords
                     }
                     all_results.append(result)
 
@@ -392,7 +391,7 @@ class KeywordMatchCalculator:
     def calculate_match_percent(self, target_keywords, actual_responses):
         if not target_keywords or not actual_responses:
             return 0
-        response = actual_responses[0].lower()
+        response = actual_responses.lower()
         matched_keywords = sum(keyword.lower() in response for keyword in target_keywords)
         return matched_keywords / len(target_keywords)
 
@@ -432,12 +431,10 @@ class LLMRatingCalculator:
         """
         model, provider = self.llm_evaluation_model
         try:
-            rating_prompt = f"Rate the following response... {row['response']}\nRating:"
-            logging.info(f"Sending rating prompt: {rating_prompt}")
-            response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, 0)
+            rating_prompt = f"Rate the following response on an integer scale from 0 to 10 based on its similarity to the target answer. Only return an integer, with no comments or punctuation \n\nTarget Answer: {row['target_answer']}\nResponse: {row['response']}\nRating:"
+            response = LLMUtility.call_model(model, [{"role": "user", "content": rating_prompt}], provider, temperature=0.7)
             rating = response['choices'][0]['message']['content'].strip()
-            logging.info(f"Received rating: {rating}")
-            return int(rating) / 10
+            return int(rating)/10
         except ValueError:
             logging.warning(f"Could not extract a valid rating from response: {rating}")
             return None
