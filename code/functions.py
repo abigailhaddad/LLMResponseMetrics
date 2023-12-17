@@ -227,6 +227,7 @@ class ModelResponseGenerator:
         self.llm_rating_calculator = llm_rating_calculator
         self.temperature = temperature
 
+        
     def process_prompts_with_realtime_evaluation(self, df, perturbations_dict):
         all_results = []
         for index, row in df.iterrows():
@@ -241,11 +242,12 @@ class ModelResponseGenerator:
                     actual_prompt = random.choice(perturbations)
                     temp_value = random.uniform(0.0, 1.0) if self.temperature == "variable" else self.temperature
                     message_content = f"{self.instructions} {actual_prompt}"
-                    response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)
+                    response = LLMUtility.call_model(model, [{"role": "user", "content": message_content}], provider, temp_value)['choices'][0]['message']['content']
                     
                     # Evaluate the response
-                    similarity_score = self.similarity_calculator.calculate_score([target_answer], [response])
-                    keyword_score = self.keyword_match_calculator.calculate_match_percent(keywords, [response])
+                    print(target_answer, response)
+                    similarity_score = self.similarity_calculator.calculate_score(target_answer, response)
+                    keyword_score = self.keyword_match_calculator.calculate_match_percent(keywords, response)
                     llm_rating = self.llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
 
                     result = {
@@ -307,11 +309,9 @@ class SimilarityCalculator:
     def __init__(self, model_name):
         self.model_name = model_name
         self.tokenizer, self.model = self.get_model(self.model_name)
-    
+        self.model.eval()  # Set model to evaluation mode
+
     def get_model(self, model_name: str):
-        """
-        Retrieves the pre-trained model and tokenizer.
-        """
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModel.from_pretrained(model_name)
         return tokenizer, model
@@ -364,9 +364,9 @@ class SimilarityCalculator:
         Returns:
             torch.Tensor: Encoded text embeddings.
         """
-        encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+        encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
         with torch.no_grad():
-            model_output = model(**encoded_input)
+            model_output = self.model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
     
@@ -490,7 +490,6 @@ class LLMAnalysisPipeline:
 
         # Pass the calculator instances to ModelResponseGenerator
         self.response_generator = ModelResponseGenerator(models_dict, instructions, max_runs, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator, self.temperature)
-
 
     def run_pipeline(self):
         """
