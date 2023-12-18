@@ -58,6 +58,7 @@ pipeline = LLMAnalysisPipeline(
 
 ## Other Files
 - `demo.ipynb`: A Jupyter notebook demonstrating the pipeline usage.
+- `population_max_simulation_demo.ipynb`: A Jupyter notebook simulating sampling to find maximum scores in a population.
 - `requirements.txt`: Lists all the Python package dependencies.
 - `litellm_demo.py`: A simple script showcasing basic usage of the `litellm` library for API calls.
 - `keys/`: Directory for storing API keys.
