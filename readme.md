@@ -19,26 +19,27 @@ Some of the questions in the input data are 'true', meaning that the we already 
 - API keys for the LLMs stored in a 'keys' directory.
 
 ## Process Flow
-1. **Data Preparation**: Loads prompts, target answers, and associated data including the true/false flag.
-2. **Prompt Perturbation**: Generates variations or perturbations of each prompt using an LLM.
-3. **Response Generation**: Obtains responses from an LLM for both original and perturbed prompts.
-4. **Evaluation**: Applies the three methods to assess each response.
-5. **Aggregation**: Analyzes the best outputs according to each method.
+1. **Data Preparation**: Loads the necessary data including prompts and target answers.
+2. **Prompt Perturbation**: Generates various versions of each prompt using an LLM.
+3. **Response Generation and Evaluation:** Obtains and immediately evaluates responses from an LLM for both original and perturbed prompts.
+4. **Aggregation:** Compiles and analyzes the top responses according to each evaluation method.
+5. **Stability/Stopping Criteria:** The pipeline monitors the consistency of maximum evaluation scores across multiple runs, halting further analysis once stable maxumum scores are achieved. Currently, each new run randomizes both temperature and perturbation. 
 
 ## Configuration and Sample Parameters
 ```python
 models_dict = {
+    #'claude-2.1':  "ANTHROPIC", 
     'gpt-3.5-turbo-0301': "OPENAI"
-}
+               } 
 csv_file_path = '../data/prompt_target_answer_pairs.csv'
 similarity_model_name = 'sentence-transformers/paraphrase-mpnet-base-v2'
-num_runs = 1
-temperature = .9
-num_perturbations= 0
+temperature = "variable"
 is_file_path = True
+max_runs= 10
 llm_evaluation_model = ['gpt-4', "OPENAI"]
 instructions = "Please answer thoroughly: "
-perturbation_model = ['gpt-4', "OPENAI"]
+perturbation_model = ['gpt-4', "OPENAI"] # I recommend using a good model for perturbations otherwise it may generate the wrong number
+stability_threshold= 3
 
 pipeline = LLMAnalysisPipeline(
     input_data=csv_file_path, 
@@ -46,11 +47,12 @@ pipeline = LLMAnalysisPipeline(
     perturbation_model=perturbation_model, 
     llm_evaluation_model=llm_evaluation_model,
     temperature = temperature,
-    num_runs= num_runs,
+    max_runs= max_runs,
     is_file_path = is_file_path,
     similarity_model_name = similarity_model_name,
-    num_perturbations = num_perturbations,
-    instructions = instructions
+    instructions = instructions,
+    stability_threshold = stability_threshold
+
 )
 ```
 
