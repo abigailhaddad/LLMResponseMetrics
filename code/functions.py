@@ -231,24 +231,29 @@ class ModelResponseGenerator:
     
     def is_stable(self):
         """
-        Checks if the scores have been stable over the last 'n' runs defined by stability_threshold.
-        Stability is defined as the scores being the same for the last 'n' runs.
+        Checks if the maximum scores have been stable over the last 'n' runs.
+        Stability is defined as the highest scores not changing for the last 'n' runs.
         """
-        if len(self.stability_scores['similarity_score']) < self.stability_threshold:
+        if any(len(scores) < self.stability_threshold for scores in self.stability_scores.values()):
             return False  # Not enough data to determine stability
 
         for metric, scores in self.stability_scores.items():
-            # Check the last 'n' scores for this metric
+            # Only consider the last 'n' scores for this metric
             last_n_scores = scores[-self.stability_threshold:]
-            if len(set(last_n_scores)) > 1:
-                logging.info(f"Scores for metric '{metric}' changed in the last {self.stability_threshold} runs. Scores: {last_n_scores}")
-                return False  # Scores have changed within the last 'n' runs
-        logging.info("Scores are stable across all metrics.")
+            max_score = max(last_n_scores)
+            if not all(score == max_score for score in last_n_scores):
+                logging.info(f"Scores for metric '{metric}' have not stabilized in the last {self.stability_threshold} runs. Scores: {last_n_scores}")
+                return False
+
+        logging.info("Scores have stabilized across all metrics.")
         return True
-        
+
     def process_prompts_with_realtime_evaluation(self, df, perturbations_dict):
         all_results = []
         for index, row in df.iterrows():
+            # Reset stability scores for each new prompt
+            self.stability_scores = {'similarity_score': [], 'keyword_score': [], 'llm_rating': []}
+
             prompt = row['prompt']
             target_answer = row.get('target_answer', None)
             keywords = row.get('keywords', None)
@@ -267,9 +272,9 @@ class ModelResponseGenerator:
                     keyword_score = self.keyword_match_calculator.calculate_match_percent(keywords, response)
                     llm_rating = self.llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
 
-                    self.stability_scores['similarity_score'].append(similarity_score)
-                    self.stability_scores['keyword_score'].append(keyword_score)
-                    self.stability_scores['llm_rating'].append(llm_rating)
+                    self.stability_scores['similarity_score'].append(max(similarity_score, self.stability_scores['similarity_score'][-1] if self.stability_scores['similarity_score'] else 0))
+                    self.stability_scores['keyword_score'].append(max(keyword_score, self.stability_scores['keyword_score'][-1] if self.stability_scores['keyword_score'] else 0))
+                    self.stability_scores['llm_rating'].append(max(llm_rating, self.stability_scores['llm_rating'][-1] if self.stability_scores['llm_rating'] else 0))
 
                     # Log the updated scores
                     logging.info(f"Run {run_number}, Model {model}: Similarity - {similarity_score}, Keywords - {keyword_score}, LLM Rating - {llm_rating}")
@@ -289,12 +294,14 @@ class ModelResponseGenerator:
                         'keywords': keywords
                     }
 
+                    # Append results
                     all_results.append(result)
 
                     # Check for stability
                     if self.is_stable():
-                        logging.info(f"Stopping early due to stable scores for the last {self.stability_threshold} runs.")
-                        return pd.DataFrame(all_results)
+                        logging.info(f"Stable scores achieved for prompt '{prompt}' after {run_number + 1} runs. Moving to next prompt.")
+                        break  # Breaks out of the innermost loop, moving to the next prompt
+
 
         return pd.DataFrame(all_results)
 
