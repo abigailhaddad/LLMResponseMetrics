@@ -218,7 +218,7 @@ class ModelResponseGenerator:
             Processes multiple prompts from a DataFrame, applying perturbations and running the models.
 
     """
-    def __init__(self, models_dict, instructions, max_runs, similarity_calculator, keyword_match_calculator, llm_rating_calculator, temperature):
+    def __init__(self, models_dict, instructions, max_runs, stability_threshold, similarity_calculator, keyword_match_calculator, llm_rating_calculator, temperature):
         self.models_dict = models_dict
         self.instructions = instructions
         self.max_runs = max_runs
@@ -226,11 +226,34 @@ class ModelResponseGenerator:
         self.keyword_match_calculator = keyword_match_calculator
         self.llm_rating_calculator = llm_rating_calculator
         self.temperature = temperature
+        self.stability_threshold = stability_threshold  # Number of runs to check for stability
+        self.stability_scores = {'similarity_score': [], 'keyword_score': [], 'llm_rating': []}  # To track scores
+    
+    def is_stable(self):
+        """
+        Checks if the maximum scores have been stable over the last 'n' runs.
+        Stability is defined as the highest scores not changing for the last 'n' runs.
+        """
+        if any(len(scores) < self.stability_threshold for scores in self.stability_scores.values()):
+            return False  # Not enough data to determine stability
 
-        
+        for metric, scores in self.stability_scores.items():
+            # Only consider the last 'n' scores for this metric
+            last_n_scores = scores[-self.stability_threshold:]
+            max_score = max(last_n_scores)
+            if not all(score == max_score for score in last_n_scores):
+                logging.info(f"Scores for metric '{metric}' have not stabilized in the last {self.stability_threshold} runs. Scores: {last_n_scores}")
+                return False
+
+        logging.info("Scores have stabilized across all metrics.")
+        return True
+
     def process_prompts_with_realtime_evaluation(self, df, perturbations_dict):
         all_results = []
         for index, row in df.iterrows():
+            # Reset stability scores for each new prompt
+            self.stability_scores = {'similarity_score': [], 'keyword_score': [], 'llm_rating': []}
+
             prompt = row['prompt']
             target_answer = row.get('target_answer', None)
             keywords = row.get('keywords', None)
@@ -239,6 +262,7 @@ class ModelResponseGenerator:
 
             for model, provider in self.models_dict.items():
                 for run_number in range(self.max_runs):
+                    print(run_number)
                     actual_prompt = random.choice(perturbations)
                     temp_value = random.uniform(0.0, 1.0) if self.temperature == "variable" else self.temperature
                     message_content = f"{self.instructions} {actual_prompt}"
@@ -248,6 +272,14 @@ class ModelResponseGenerator:
                     keyword_score = self.keyword_match_calculator.calculate_match_percent(keywords, response)
                     llm_rating = self.llm_rating_calculator.rate_response({"target_answer": target_answer, "response": response})
 
+                    self.stability_scores['similarity_score'].append(max(similarity_score, self.stability_scores['similarity_score'][-1] if self.stability_scores['similarity_score'] else 0))
+                    self.stability_scores['keyword_score'].append(max(keyword_score, self.stability_scores['keyword_score'][-1] if self.stability_scores['keyword_score'] else 0))
+                    self.stability_scores['llm_rating'].append(max(llm_rating, self.stability_scores['llm_rating'][-1] if self.stability_scores['llm_rating'] else 0))
+
+                    # Log the updated scores
+                    logging.info(f"Run {run_number}, Model {model}: Similarity - {similarity_score}, Keywords - {keyword_score}, LLM Rating - {llm_rating}")
+
+                    
                     result = {
                         'model': model,
                         'original_prompt': prompt,
@@ -261,7 +293,15 @@ class ModelResponseGenerator:
                         'true_or_false': true_or_false,
                         'keywords': keywords
                     }
+
+                    # Append results
                     all_results.append(result)
+
+                    # Check for stability
+                    if self.is_stable():
+                        logging.info(f"Stable scores achieved for prompt '{prompt}' after {run_number + 1} runs. Moving to next prompt.")
+                        break  # Breaks out of the innermost loop, moving to the next prompt
+
 
         return pd.DataFrame(all_results)
 
@@ -475,7 +515,7 @@ class LLMAnalysisPipeline:
         run_pipeline(): Runs the LLM analysis pipeline and returns the processed data.
 
     """
-    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_runs, temperature, is_file_path):
+    def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_runs, temperature, is_file_path, stability_threshold):
         self.data_loader = DataLoader(input_data, is_file_path)
         self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(perturbation_model[0], perturbation_model[1])
@@ -486,7 +526,7 @@ class LLMAnalysisPipeline:
         self.llm_rating_calculator = LLMRatingCalculator(llm_evaluation_model)
 
         # Pass the calculator instances to ModelResponseGenerator
-        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_runs, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator, self.temperature)
+        self.response_generator = ModelResponseGenerator(models_dict, instructions, max_runs, stability_threshold, self.similarity_calculator, self.keyword_match_calculator, self.llm_rating_calculator, self.temperature)
 
     def run_pipeline(self):
         """
