@@ -2,33 +2,39 @@
 
 ## Overview
 
-The LLM Analysis Pipeline is a tool designed to evaluate different methods for testing whether an LLM 'knows the answer' to a given question. This is done via having an initial set of questions and their target answers, prompting an LLM to answer the same question (but asked in different ways), and then taking the best answers to each question from each model, given three different evaluation methods.
+The LLM Analysis Pipeline is a tool which takes existing question/answer pairs and sees how close an LLM can get to producing that target answer. The goal of this is to test if the LLM 'knows' the answer to the question, and to do so in a more automatic and systematic way than you could do using a chat interface and repeatedly asking the same question. 
 
-Some of the questions in the input data are 'true', meaning that the we already know the LLM knows the answer and some are 'false', meaning that it does not. But if that's not how you want to use this, the pipeline will still run without that, you just won't be able to make a graph in the demo.ipynb workbook. 
+You can think of this as sampling from a population, where that population is the universe of responses that the LLM might give in response to the question. 
 
+There are four general parts to this framework:
 
-## Core Components and Evaluation Methods
-1. **Keyword Matching**: Analyzes the presence of predefined keywords in the LLM's responses.
-2. **Semantic Similarity**: Using Hugging Face's sentence-transformers to calculate similarity scores between LLM responses and target answers.
-3. **LLM Response Analysis**: Uses another LLM to rate how closely the LLM's response matches the target answer.
+1. **Parameters which vary**: The two parameters which vary are initial question, which is perturbed to change the wording while preserving the general meaning, and the temperature. 
+2. **Evaluation criteria**: There needs to be a method to evaluate "closeness" to the target answer. This uses three methods described below.
+3. **A process for varying parameters**: This tool currently varies both perturbation and temperature randomly. A more sophisticated method would prioritize searching the space around the best-performing parameters.
+4. **Stopping criteria**: This currently uses two criteria for stopping, or producing new responses from the LLM. First, if the results are stable across a certain number of periods defined by the `stability_threshold` parameter, the process will stop. Alternatively, if stability is not reached, the process will stop after a certain number of periods defined by the `max_runs` parameter. 
+
 
 ## Data Input Structure
-- Input CSV file with columns: 'prompt', 'target_answer', 'keywords', and 'true_or_false'.
-- 'true_or_false': Indicates whether the LLM is expected to know the answer ('true') or not ('false').
-- 'keywords': Specific keywords related to each prompt for the keyword matching method.
-- API keys for the LLMs stored in a 'keys' directory.
+- Input CSV file with columns: 'prompt', 'target_answer', and 'keywords'. 'Prompt' is the question, 'target_answer' is the answer we're testing closeness to, and 'keywords' are important words appearing in that target answer. You can pass the filepath to the .csv file as a parameter to the pipeline. 
+- API keys for the LLMs stored in a 'keys' directory at the same level as the code. The structure of each API key is `<provider>_key.txt` - for instance, "openai_key.txt".
 
 ## Process Flow
 1. **Data Preparation**: Loads the necessary data including prompts and target answers.
 2. **Prompt Perturbation**: Generates various versions of each prompt using an LLM.
 3. **Response Generation and Evaluation:** Obtains and immediately evaluates responses from an LLM for both original and perturbed prompts.
-4. **Aggregation:** Compiles and analyzes the top responses according to each evaluation method.
-5. **Stability/Stopping Criteria:** The pipeline monitors the consistency of maximum evaluation scores across multiple runs, halting further analysis once stable maxumum scores are achieved. Currently, each new run randomizes both temperature and perturbation. 
+4. **Stability/Stopping Criteria:** The pipeline monitors the consistency of maximum evaluation scores across multiple runs, halting further analysis once stable maxumum scores are achieved. 
+5. **Aggregation:** Aggregates and shows the top responses according to each evaluation method. (This is not part of the pipeline.)
+
+
+## Evaluation Methods
+1. **Keyword Matching**: Analyzes the presence of predefined keywords in the LLM's responses.
+2. **Semantic Similarity**: Using Hugging Face's sentence-transformers to calculate similarity scores between LLM responses and target answers.
+3. **LLM Response Analysis**: Uses another LLM to rate how closely the LLM's response matches the target answer.
 
 ## Configuration and Sample Parameters
 ```python
 models_dict = {
-    #'claude-2.1':  "ANTHROPIC", 
+    'claude-2.1':  "ANTHROPIC", 
     'gpt-3.5-turbo-0301': "OPENAI"
                } 
 csv_file_path = '../data/prompt_target_answer_pairs.csv'
@@ -61,7 +67,12 @@ pipeline = LLMAnalysisPipeline(
 - `population_max_simulation_demo.ipynb`: A Jupyter notebook simulating sampling to find maximum scores in a population.
 - `requirements.txt`: Lists all the Python package dependencies.
 - `litellm_demo.py`: A simple script showcasing basic usage of the `litellm` library for API calls.
-- `keys/`: Directory for storing API keys.
+
+## What Models Can I Use?
+
+-For generating perturbations (the `perturbation_model`) and for testing LLMs (`models_dict`), you can use any models supported by LiteLLM. But I'd suggest using GPT-4 or a comparably-powered model for perturbation generation because if the model doesn't follow the perturbation instructions, the code won't be able to parse it into a list of perturbations. 
+-For generating similarity scores (`similarity_model_name`), you can use any model on HuggingFace with the same model type as 'sentence-transformers/paraphrase-mpnet-base-v2'. 
+
 
 ## Installation
 1. Clone the repository to your local machine.
@@ -75,7 +86,7 @@ pipeline = LLMAnalysisPipeline(
 
 ### Setting Up
 - Ensure that your API keys are correctly placed in the `keys` folder.
-- Place your data in the `data` folder if you're using CSV files for input.
+- Set up your .csv file, ensure it has the correct variables, and set the `input_data` parameter to its filepath. 
 
 ### Running the Pipeline
 1. Import the necessary classes from `functions.py`.
@@ -83,7 +94,7 @@ pipeline = LLMAnalysisPipeline(
 3. Call the `run_pipeline` method to process the data and generate responses or use the `demo.ipynb` notebook.
 
 ### Analyzing the Output
-The output DataFrame `df_responses` contains the responses along with various metrics calculated. You can further analyze these results using your preferred data analysis tools.
+The pipeline output DataFrame (`df_responses` if you use `demo.ipynb`) contains the responses along with each metric calculated. You can further analyze these results using your preferred data analysis tools or use the analysis provided in the `demo.ipynb` notebook. 
 
 ## Contact
 If you are using this or want to use this, please get in touch - abigail dot haddad at gmail dot com. 
