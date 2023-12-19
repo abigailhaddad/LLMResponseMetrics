@@ -62,7 +62,8 @@ pipeline = LLMAnalysisPipeline(
 )
 ```
 
-## Other Files
+## Files
+- `functions.py`: This has the code for running the pipeline.
 - `demo.ipynb`: A Jupyter notebook demonstrating the pipeline usage.
 - `population_max_simulation_demo.ipynb`: A Jupyter notebook simulating sampling to find maximum scores in a population.
 - `requirements.txt`: Lists all the Python package dependencies.
@@ -70,8 +71,8 @@ pipeline = LLMAnalysisPipeline(
 
 ## What Models Can I Use?
 
--For generating perturbations (the `perturbation_model`) and for testing LLMs (`models_dict`), you can use [chat models supported by LiteLLM](https://docs.litellm.ai/docs/providers). I'd suggest using GPT-4 or a comparably-powered model for perturbation generation because if the model doesn't follow the perturbation instructions, the code won't be able to parse it into a list of perturbations. 
--For generating similarity scores (`similarity_model_name`), you can use any model on HuggingFace with the same model type as 'sentence-transformers/paraphrase-mpnet-base-v2'. 
+- For generating perturbations (the `perturbation_model`) and for testing LLMs (`models_dict`), you can use [chat models supported by LiteLLM](https://docs.litellm.ai/docs/providers). I'd suggest using GPT-4 or a comparably-powered model for perturbation generation because if the model doesn't follow the perturbation instructions, the code won't be able to parse it into a list of perturbations. 
+- For generating similarity scores (`similarity_model_name`), you can use any model on HuggingFace with the same model type as 'sentence-transformers/paraphrase-mpnet-base-v2'. 
 
 ## Installation
 1. Clone the repository to your local machine.
@@ -90,14 +91,15 @@ pipeline = LLMAnalysisPipeline(
 ### Running the Pipeline
 1. Import the necessary classes from `functions.py`.
 2. Initialize the `LLMAnalysisPipeline` with your specific configurations.
-3. Call the `run_pipeline` method to process the data and generate responses or use the `demo.ipynb` notebook.
+3. Call the `run_pipeline` method to process the data and generate responses.
+4. Alternatively, use the `demo.ipynb` notebook.
 
 ### Analyzing the Output
 The pipeline output DataFrame (`df_responses` if you use `demo.ipynb`) contains the responses along with each metric calculated. You can further analyze these results using your preferred data analysis tools or use the analysis provided in the `demo.ipynb` notebook. 
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
 
 ## Contact
 If you are using this or want to use this, please get in touch - abigail dot haddad at gmail dot com. 
