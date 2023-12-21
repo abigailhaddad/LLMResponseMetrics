@@ -208,10 +208,10 @@ class ModelResponseGenerator:
             If "variable", a random value between 0.0 and 1.0 will be used for each prompt.
 
     Methods:
-        create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, true_or_false, run_number):
+        create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, run_number):
             Creates a dictionary containing the result information for a single prompt.
 
-        process_single_prompt(model, provider, original_prompt, actual_prompt, instructions, temperature, run_number, target_answer=None, keywords=None, true_or_false=None):
+        process_single_prompt(model, provider, original_prompt, actual_prompt, instructions, temperature, run_number, target_answer=None, keywords=None):
             Processes a single prompt by calling the model and returning the result dictionary.
 
         process_prompts(df, perturbations_dict, num_runs):
@@ -257,7 +257,6 @@ class ModelResponseGenerator:
             prompt = row['prompt']
             target_answer = row.get('target_answer', None)
             keywords = row.get('keywords', None)
-            true_or_false = row.get('true_or_false', None)
             perturbations = perturbations_dict.get(prompt, [prompt])
 
             for model, provider in self.models_dict.items():
@@ -289,7 +288,6 @@ class ModelResponseGenerator:
                         'similarity_score': similarity_score,
                         'keyword_score': keyword_score,
                         'llm_rating': llm_rating,
-                        'true_or_false': true_or_false,
                         'keywords': keywords
                     }
 
@@ -555,7 +553,7 @@ def aggregate_best_scores(df, score_column):
 
     """
     # Define the columns to include in the output
-    relevant_columns = ['model', 'original_prompt', 'actual_prompt', 'response', 'true_or_false', score_column]
+    relevant_columns = ['model', 'original_prompt', 'actual_prompt', 'response', score_column]
 
     # Group by 'model' and 'original_prompt', and get the row with the best score in each group
     df_best_scores = df.loc[df.groupby(['model', 'original_prompt'])[score_column].idxmax()]
