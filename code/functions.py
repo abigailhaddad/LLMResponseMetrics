@@ -100,7 +100,7 @@ class LLMUtility:
         api_key = LLMUtility.read_api_key(provider)  
         try:
             response = completion(model=model, messages=messages, temperature=temperature, api_key=api_key)
-            logging.info(f"API call successful. Model: {model}, Provider: {provider}, Response: {response}")
+            logging.info(f"API call successful. Model: {model}, Provider: {provider}")
             return response
         except Exception as e:
             logging.error(f"API call failed. Model: {model}, Provider: {provider}, Error: {e}")
@@ -262,7 +262,6 @@ class ModelResponseGenerator:
 
             for model, provider in self.models_dict.items():
                 for run_number in range(self.max_runs):
-                    print(run_number)
                     actual_prompt = random.choice(perturbations)
                     temp_value = random.uniform(0.0, 1.0) if self.temperature == "variable" else self.temperature
                     message_content = f"{self.instructions} {actual_prompt}"
