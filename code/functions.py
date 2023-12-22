@@ -109,18 +109,20 @@ class LLMUtility:
 
 class PerturbationGenerator:
     """
-    A class that generates perturbations for a given prompt using a perturbation model.
+    This class is responsible for generating textual perturbations for given prompts using a specified perturbation model (LLM).
 
     Attributes:
-        perturbation_model (str): The name of the perturbation model.
+        perturbation_model (str): Identifier for the perturbation model to be used.
         provider (str): The provider of the perturbation model.
-        num_perturbations (int): The number of perturbations to generate.
+        num_perturbations (int): The number of perturbations to be generated for each prompt. If set to 0, only the original prompt is returned.
+        temperature (float): The temperature parameter influencing the variability of generated perturbations.
 
     Methods:
-        get_perturbations(prompt): Generates perturbations for a given prompt.
-        parse_model_response(response): Parses the response from the perturbation model.
-        get_perturbations_for_all_prompts(prompts): Generates perturbations for multiple prompts.
+        get_perturbations(prompt): Generates and returns a list of perturbed versions of the given prompt.
+        parse_model_response(response): Extracts and formats perturbations from the model's response.
+        get_perturbations_for_all_prompts(prompts): Generates perturbations for a list of prompts and returns a dictionary mapping each prompt to its perturbations.
     """
+
 
     def __init__(self, model, provider):
         self.perturbation_model = model
@@ -199,24 +201,21 @@ class PerturbationGenerator:
 
 class ModelResponseGenerator:
     """
-    A class that generates model responses based on given instructions and prompts.
+    Generates responses for given prompts using specified models. It also performs stability checks and real-time evaluation of responses.
 
     Args:
-        models_dict (dict): A dictionary mapping model names to their respective providers.
-        instructions (str): The instructions to be included in the message content sent to the model.
-        temperature (float or str): The temperature value to control the randomness of the model's output. 
-            If "variable", a random value between 0.0 and 1.0 will be used for each prompt.
+        models_dict (dict): Maps model names to their respective providers.
+        instructions (str): Instructions to be included in the message content sent to the models.
+        max_runs (int): Maximum number of runs to generate responses for each prompt.
+        stability_threshold (int): Number of consecutive runs without score change required to consider a prompt's scores as stable.
+        similarity_calculator (SimilarityCalculator): Instance of SimilarityCalculator for computing similarity scores.
+        keyword_match_calculator (KeywordMatchCalculator): Instance of KeywordMatchCalculator for keyword analysis.
+        llm_rating_calculator (LLMRatingCalculator): Instance of LLMRatingCalculator for rating model responses.
+        temperature (float): Temperature setting for the language model, influencing response variability.
 
     Methods:
-        create_result_dict(model, original_prompt, actual_prompt, response, temperature, target_answer, keywords, run_number):
-            Creates a dictionary containing the result information for a single prompt.
-
-        process_single_prompt(model, provider, original_prompt, actual_prompt, instructions, temperature, run_number, target_answer=None, keywords=None):
-            Processes a single prompt by calling the model and returning the result dictionary.
-
-        process_prompts(df, perturbations_dict, num_runs):
-            Processes multiple prompts from a DataFrame, applying perturbations and running the models.
-
+        is_stable(): Checks if the maximum scores have been stable over the last 'stability_threshold' runs.
+        process_prompts_with_realtime_evaluation(df, perturbations_dict): Processes prompts with real-time evaluation and stability checks, and returns a DataFrame with results.
     """
     def __init__(self, models_dict, instructions, max_runs, stability_threshold, similarity_calculator, keyword_match_calculator, llm_rating_calculator, temperature):
         self.models_dict = models_dict
@@ -340,7 +339,16 @@ class ResultAggregator:
 
 class SimilarityCalculator:
     """
-    A class that calculates similarity scores between target texts and actual texts using a pre-trained model.
+    Calculates similarity scores between target texts and actual texts using embeddings from a pre-trained language model.
+
+    Args:
+        model_name (str): The identifier of the pre-trained model to be used for generating text embeddings.
+
+    Methods:
+        calculate_score(target_texts, actual_texts): Computes and returns the similarity score between the target and actual texts.
+        perform_similarity_analysis(df): Performs similarity analysis on a DataFrame containing 'target_answer' and 'response' columns, and returns the DataFrame with an added 'similarity_score' column.
+        encode_texts(texts): Encodes a list of texts into embeddings using the pre-trained model.
+        calculate_similarity_scores(df): Calculates and returns similarity scores for each row in a DataFrame.
     """
     def __init__(self, model_name):
         self.model_name = model_name
@@ -495,22 +503,22 @@ class LLMRatingCalculator:
         
 class LLMAnalysisPipeline:
     """
-    Class representing the LLM Analysis Pipeline.
+    Orchestrates the process of analyzing language model responses using perturbations, similarity calculations, keyword matching, and ratings.
 
     Args:
-        input_data (str): Path to the input data file.
-        models_dict (dict): Dictionary containing the models for generating responses.
-        perturbation_model (str): Name of the perturbation model.
-        llm_evaluation_model (str): Name of the LLM evaluation model.
-        temperature (float): Temperature parameter for response generation.
-        max_runs (int): Maximum number of runs for response generation.
-        is_file_path (bool): Flag indicating whether the input data is a file path.
-        similarity_model_name (str): Name of the similarity model.
-        instructions (str): Instructions for response generation.
+        input_data (str): Path to the input data file or a list of prompts.
+        models_dict (dict): Dictionary mapping model identifiers to their respective providers.
+        perturbation_model (tuple): Tuple containing the identifier and provider of the perturbation model.
+        llm_evaluation_model (tuple): Tuple containing the identifier and provider of the LLM evaluation model.
+        instructions (str): Instructions to be included in the message content sent to the models.
+        similarity_model_name (str): Identifier of the model used for similarity calculations.
+        max_runs (int): Maximum number of runs for generating responses for each prompt.
+        temperature (float): Temperature setting for the language model.
+        is_file_path (bool): Flag indicating whether the input_data is a file path (True) or a list of prompts (False).
+        stability_threshold (int): Number of consecutive runs required for scores to be considered stable.
 
     Methods:
-        run_pipeline(): Runs the LLM analysis pipeline and returns the processed data.
-
+        run_pipeline(): Executes the analysis pipeline, processes data, and returns a DataFrame with calculated metrics and results.
     """
     def __init__(self, input_data, models_dict, perturbation_model, llm_evaluation_model, instructions, similarity_model_name, max_runs, temperature, is_file_path, stability_threshold):
         self.data_loader = DataLoader(input_data, is_file_path)
