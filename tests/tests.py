@@ -84,8 +84,7 @@ class TestPerturbationGenerator(unittest.TestCase):
             "choices": [{"message": {"content": "- Perturbation 1\n- Perturbation 2"}}]
         }
         result = generator.parse_model_response(response)
-        self.assertEqual(result, ["- Perturbation 1", "- Perturbation 2"])  
-
+        self.assertEqual(result, ["- Perturbation 1", "- Perturbation 2"])
 
 
 class TestModelResponseGeneratorStability(unittest.TestCase):

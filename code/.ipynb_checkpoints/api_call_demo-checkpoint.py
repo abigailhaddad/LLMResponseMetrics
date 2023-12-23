@@ -1,33 +1,26 @@
+
 import litellm
 import pandas as pd
 
-
 def get_response(model, prompt, temperature):
     messages = [{"content": prompt, "role": "user"}]
-    response = litellm.completion(
-        model=model, messages=messages, temperature=temperature
-    )
+    response = litellm.completion(model=model, messages=messages, temperature=temperature)
     return response
-
 
 def generate_responses(model, prompts, temperature, num_repeats):
     responses_data = [
         {
             "model": model,
             "prompt": prompt,
-            "response": get_response(model, prompt, temperature)["choices"][0][
-                "message"
-            ]["content"],
+            "response": get_response(model, prompt, temperature)['choices'][0]['message']['content'],
             "temperature": temperature,
-            "repeat": repeat + 1,
+            "repeat": repeat + 1
         }
-        for prompt in prompts
-        for repeat in range(num_repeats)
+        for prompt in prompts for repeat in range(num_repeats)
     ]
 
     responses_df = pd.DataFrame(responses_data)
     return responses_df
-
 
 # Example usage
 prompts = ["Hello, how are you?", "What is the weather like today?"]
