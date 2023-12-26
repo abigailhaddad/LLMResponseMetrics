@@ -80,16 +80,15 @@ def analyze_responses_vs_logits(client, model_name, prompt, n):
     logits_not_assigned_to_any_words = set()
     
     for logprobs_content, response in completions:
-        response_tokens = extract_tokens(process_logprobs(logprobs_content))
+        response_tokens = set(extract_tokens(process_logprobs(logprobs_content)))
         
         response_tokens_set = set([re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", i.lower() ) for i in response.split()])
         intersection = response_tokens_set.intersection(response_tokens)
         words_found_in_both.update(intersection)
-        words_found_only_in_responses.update(response_tokens_set - intersection)
-        
-        # Convert response_tokens to a set before performing the set difference operation
-        logits_not_assigned_to_any_words.update(set(response_tokens) - intersection)
+        tokens_not_substrings = {token for token in response_tokens if not any(token in s for s in intersection)}
     
+        words_found_only_in_responses.update(response_tokens_set - intersection)
+        logits_not_assigned_to_any_words.update(tokens_not_substrings)
     return {
         "Responses": [response for _, response in completions],
         "ResponseTokens": [response_tokens for response_tokens, _ in completions],
@@ -119,5 +118,4 @@ def main():
     return results
 
 
-if __name__ == "__main__":
-    main_result = main()
+
