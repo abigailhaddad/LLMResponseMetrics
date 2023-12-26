@@ -1,5 +1,6 @@
 import pandas as pd
 from openai import OpenAI
+import re
 
 
 def load_api_key(file_path):
@@ -62,6 +63,9 @@ def extract_tokens(sorted_token_probs):
     tokens = []
     for token, _ in sorted_token_probs:
         processed_token = token.lower().strip()
+        # Use regular expression to strip non-alphabetical characters from both ends
+        processed_token = re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", processed_token)
+
         if processed_token not in seen:
             seen.add(processed_token)
             tokens.append(processed_token)
@@ -78,7 +82,7 @@ def analyze_responses_vs_logits(client, model_name, prompt, n):
     for logprobs_content, response in completions:
         response_tokens = extract_tokens(process_logprobs(logprobs_content))
         
-        response_tokens_set = set(response.split())
+        response_tokens_set = set([re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", i.lower() ) for i in response.split()])
         intersection = response_tokens_set.intersection(response_tokens)
         words_found_in_both.update(intersection)
         words_found_only_in_responses.update(response_tokens_set - intersection)
@@ -115,4 +119,5 @@ def main():
     return results
 
 
-
+if __name__ == "__main__":
+    main_result = main()
