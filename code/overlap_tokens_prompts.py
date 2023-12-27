@@ -3,10 +3,6 @@ from openai import OpenAI
 import re
 
 def can_be_composed(word, tokens, used_tokens):
-    """
-    Recursive function to check if a word can be composed from the tokens.
-    Also tracks the tokens used in the composition.
-    """
     if word == "":
         return True, used_tokens
 
@@ -15,6 +11,10 @@ def can_be_composed(word, tokens, used_tokens):
             success, tokens_used = can_be_composed(word[i:], tokens, used_tokens + [word[:i]])
             if success:
                 return True, tokens_used
+
+    return False, used_tokens
+
+
 
 def load_api_key(file_path):
     """
@@ -96,41 +96,48 @@ def find_words_found_in_both_and_used_tokens(words, tokens):
         if word in tokens:
             words_found_in_both.add(word)
             tokens_used.add(word)
-        else:
-            success, used_tokens_for_word = can_be_composed(word, tokens, [])
-            if success:
-                words_found_in_both.add(word)
-                tokens_used.update(used_tokens_for_word)
+        
+        success, used_tokens_for_word = can_be_composed(word, tokens, [])
+        if success:
+            words_found_in_both.add(word)
+            tokens_used.update(used_tokens_for_word)
 
     return words_found_in_both, tokens_used
+
 
 def find_words_only_in_words(words, tokens):
     words_in_both, _ = find_words_found_in_both_and_used_tokens(words, tokens)
     return words - words_in_both
 
-def find_tokens_not_assigned(words, tokens):
-    _, used_tokens = find_words_found_in_both_and_used_tokens(words, tokens)
-    return tokens - used_tokens
+def find_tokens_not_assigned(all_tokens, words_found_in_both):
+    """
+    Function to find tokens that are not used as substrings in any word in words_found_in_both.
+    """
+    tokens_not_assigned = set(all_tokens)
+    for word in words_found_in_both:
+        for token in all_tokens:
+            if token in word:
+                tokens_not_assigned.discard(token)
 
+    return tokens_not_assigned
+
+# Revised analyze_responses_vs_logits to use the new logic
 def analyze_responses_vs_logits(client, model_name, prompt, n):
     completions = get_chat_completion(client, model_name, prompt, n)
     
-    words_found_only_in_responses = set()
-    words_found_in_both = set()
-    logits_not_assigned_to_any_words = set()
+    all_tokens = set()
+    all_words = set()
     
     for logprobs_content, response in completions:
         tokens = set(extract_tokens(process_logprobs(logprobs_content)))
         words = set([re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", i.lower() ) for i in response.split()])
+        all_tokens.update(tokens)
+        all_words.update(words)
 
-        words_in_both, used_tokens = find_words_found_in_both_and_used_tokens(words, tokens)
-        words_only_in_words = find_words_only_in_words(words, tokens)
-        tokens_not_used = find_tokens_not_assigned(words, tokens)
+    words_in_both, _ = find_words_found_in_both_and_used_tokens(all_words, all_tokens)
+    words_only_in_words = find_words_only_in_words(all_words, all_tokens)
+    tokens_not_used = find_tokens_not_assigned(all_tokens, words_in_both)
 
-        # Update aggregate results
-        words_found_only_in_responses.update(words_only_in_words)
-        words_found_in_both.update(words_in_both)
-        logits_not_assigned_to_any_words.update(tokens_not_used)
     return {
         "Responses": [response for _, response in completions],
         "ResponseTokens": [response_tokens for response_tokens, _ in completions],
@@ -138,6 +145,8 @@ def analyze_responses_vs_logits(client, model_name, prompt, n):
         "WordsFoundInBoth": sorted(list(words_in_both)),
         "LogitsNotAssignedToAnyWords": sorted(list(tokens_not_used))
     }
+
+
 
 
 def main():
