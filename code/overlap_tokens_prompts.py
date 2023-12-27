@@ -187,6 +187,22 @@ def count_logits_in_responses(logits_list, n):
     return frequency_count
 
 
+def add_average_logits_column(df, n):
+    """
+    Append a column to the DataFrame that shows the average number of logits in each response.
+
+    :param df: DataFrame containing the logit counts.
+    :param n: Total number of responses.
+    :return: DataFrame with the added column for average logits.
+    """
+    def calculate_average_logits(logit_counts):
+        total_logits = sum(count * freq for freq, count in logit_counts.items())
+        return total_logits / n
+
+    df['AverageLogits'] = df['LogitCounts'].apply(calculate_average_logits)
+    return df
+
+
 
 
 
@@ -199,15 +215,26 @@ model_name = "gpt-3.5-turbo"
 prompt = "What is the process of photosynthesis?"
 n = 3  # Number of completions for each prompt
 # Define temperatures to analyze
+
 temperatures = [0.2, 0.5, 0.7, 1.0]
+prompts = ["What is the process of photosynthesis?", "Explain the theory of relativity", "Describe the water cycle"] # Example prompts
 results_list = []
 
-for temp in temperatures:
-    results = analyze_responses_vs_logits(client, model_name, prompt, n, temperature=temp)
-    logits_count = count_logits_in_responses(results["Logits"], n)
-    results_list.append(pd.DataFrame({'Temperature': [temp], 'LogitCounts': [logits_count]}))
+for prompt in prompts:
+    for temp in temperatures:
+        results = analyze_responses_vs_logits(client, model_name, prompt, n, temperature=temp)
+        logits_count = count_logits_in_responses(results["Logits"], n)
+        results_list.append(pd.DataFrame({
+            'Prompt': [prompt], 
+            'Temperature': [temp], 
+            'LogitCounts': [logits_count]
+        }))
 
 # Concatenate all results into a single DataFrame
 df = pd.concat(results_list, ignore_index=True)
 
 print(df)
+
+# Example usage
+df_with_avg_logits = add_average_logits_column(df, n)
+print(df_with_avg_logits)
