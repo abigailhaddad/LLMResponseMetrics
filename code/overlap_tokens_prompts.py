@@ -29,7 +29,7 @@ def load_api_key(file_path):
         return file.read().strip()
 
 
-def get_chat_completion(client, model_name, prompt, n=1):
+def get_chat_completion(client, model_name, prompt, n=1, temperature=1.0):
     """
     Get n chat completions from the OpenAI API and return a list of responses.
 
@@ -37,6 +37,7 @@ def get_chat_completion(client, model_name, prompt, n=1):
     :param model_name: Name of the OpenAI model.
     :param prompt: Prompt to be sent to the model.
     :param n: Number of completions to generate.
+    :param temperature: Temperature for the model's response.
     :return: List of tuples containing logprobs content and actual content of the message.
     """
     completions = []
@@ -46,11 +47,13 @@ def get_chat_completion(client, model_name, prompt, n=1):
             messages=[{"role": "user", "content": prompt}],
             logprobs=True,
             top_logprobs=5,
+            temperature=temperature  # Add temperature parameter
         )
         logprobs_content = completion.choices[0].logprobs.content
         actual_content = completion.choices[0].message.content
         completions.append((logprobs_content, actual_content))
     return completions
+
 
 
 def process_logprobs(logprobs_content):
@@ -126,8 +129,8 @@ def find_tokens_not_assigned(all_tokens, words_found_in_both):
     return tokens_not_assigned
 
 
-def analyze_responses_vs_logits(client, model_name, prompt, n):
-    completions = get_chat_completion(client, model_name, prompt, n)
+def analyze_responses_vs_logits(client, model_name, prompt, n, temperature):
+    completions = get_chat_completion(client, model_name, prompt, n, temperature)
 
     all_tokens = set()
     all_words = set()
@@ -195,13 +198,16 @@ client = OpenAI(api_key=api_key)
 model_name = "gpt-3.5-turbo"
 prompt = "What is the process of photosynthesis?"
 n = 3  # Number of completions for each prompt
-# Use the analyze_responses_vs_logits to get the results
-results = analyze_responses_vs_logits(client, model_name, prompt, n)
+# Define temperatures to analyze
+temperatures = [0.2, 0.5, 0.7, 1.0]
+results_list = []
 
-# Check if logits are the same
-logits_same = are_logits_same(results["Logits"])
-print(f"Are all logits the same across responses? {'Yes' if logits_same else 'No'}")
+for temp in temperatures:
+    results = analyze_responses_vs_logits(client, model_name, prompt, n, temperature=temp)
+    logits_count = count_logits_in_responses(results["Logits"], n)
+    results_list.append(pd.DataFrame({'Temperature': [temp], 'LogitCounts': [logits_count]}))
 
+# Concatenate all results into a single DataFrame
+df = pd.concat(results_list, ignore_index=True)
 
-logits_count = count_logits_in_responses(results["Logits"], n)
-print(logits_count)
+print(df)
