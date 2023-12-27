@@ -2,18 +2,20 @@ import pandas as pd
 from openai import OpenAI
 import re
 
+
 def can_be_composed(word, tokens, used_tokens):
     if word == "":
         return True, used_tokens
 
     for i in range(1, len(word) + 1):
         if word[:i] in tokens:
-            success, tokens_used = can_be_composed(word[i:], tokens, used_tokens + [word[:i]])
+            success, tokens_used = can_be_composed(
+                word[i:], tokens, used_tokens + [word[:i]]
+            )
             if success:
                 return True, tokens_used
 
     return False, used_tokens
-
 
 
 def load_api_key(file_path):
@@ -84,6 +86,7 @@ def extract_tokens(sorted_token_probs):
             tokens.append(processed_token)
     return tokens
 
+
 def find_words_found_in_both_and_used_tokens(words, tokens):
     """
     Function to find words that are either in tokens or can be composed of tokens,
@@ -96,7 +99,7 @@ def find_words_found_in_both_and_used_tokens(words, tokens):
         if word in tokens:
             words_found_in_both.add(word)
             tokens_used.add(word)
-        
+
         success, used_tokens_for_word = can_be_composed(word, tokens, [])
         if success:
             words_found_in_both.add(word)
@@ -108,6 +111,7 @@ def find_words_found_in_both_and_used_tokens(words, tokens):
 def find_words_only_in_words(words, tokens):
     words_in_both, _ = find_words_found_in_both_and_used_tokens(words, tokens)
     return words - words_in_both
+
 
 def find_tokens_not_assigned(all_tokens, words_found_in_both):
     """
@@ -121,20 +125,21 @@ def find_tokens_not_assigned(all_tokens, words_found_in_both):
 
     return tokens_not_assigned
 
-# Revised analyze_responses_vs_logits to use the new logic
+
 def analyze_responses_vs_logits(client, model_name, prompt, n):
     completions = get_chat_completion(client, model_name, prompt, n)
-    
+
     all_tokens = set()
     all_words = set()
-    
+    all_logits = []
+
     for logprobs_content, response in completions:
-        tokens = set(extract_tokens(process_logprobs(logprobs_content)))
-        split_response = re.split(r'\s+|[\.,;:\-!?]', response.lower())
+        split_response = re.split(r"\s+|[\.,;:\-!?]", response.lower())
         words = set([re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", i) for i in split_response])
 
-        all_tokens.update(tokens)
+        all_tokens.update(set(extract_tokens(process_logprobs(logprobs_content))))
         all_words.update(words)
+        all_logits.append(logprobs_content)
 
     words_in_both, _ = find_words_found_in_both_and_used_tokens(all_words, all_tokens)
     words_only_in_words = find_words_only_in_words(all_words, all_tokens)
@@ -145,31 +150,58 @@ def analyze_responses_vs_logits(client, model_name, prompt, n):
         "ResponseTokens": [response_tokens for response_tokens, _ in completions],
         "WordsFoundOnlyInResponses": sorted(list(words_only_in_words)),
         "WordsFoundInBoth": sorted(list(words_in_both)),
-        "LogitsNotAssignedToAnyWords": sorted(list(tokens_not_used))
+        "LogitsNotAssignedToAnyWords": sorted(list(tokens_not_used)),
+        "Logits": all_logits,
     }
 
 
+def are_logits_same(logits_list):
+    if not logits_list:
+        return True
+
+    first_logits = logits_list[0]
+    return all(logits == first_logits for logits in logits_list[1:])
+
+def count_logits_in_responses(logits_list, n):
+    """
+    Count how many logits appear in a specific number of responses.
+
+    :param logits_list: List of logits for each response.
+    :param n: Total number of responses.
+    :return: Dictionary with keys as number of responses and values as count of logits.
+    """
+    logit_frequency = {}
+    for response_logits in logits_list:
+        for token_logprob in response_logits:
+            token = token_logprob.token  # Accessing the token string
+            logit_frequency[token] = logit_frequency.get(token, 0) + 1
+
+    frequency_count = {i: 0 for i in range(1, n+1)}
+    for freq in logit_frequency.values():
+        if freq in frequency_count:
+            frequency_count[freq] += 1
+
+    return frequency_count
 
 
-def main():
-    key_file_path = "keys/openai_key.txt"
-    api_key = load_api_key(key_file_path)
-
-    client = OpenAI(api_key=api_key)
-
-    model_name = "gpt-3.5-turbo"
-    prompt = "What is the process of photosynthesis?"
-    n = 3  # Number of completions for each prompt
-
-    # Call specific pieces and return objects
-    results = analyze_responses_vs_logits(client, model_name, prompt, n)
-    
-    print("Responses:")
-    print(results["Responses"])
-    print("\nResponse Tokens:")
-    print(results["ResponseTokens"])
-    return results
 
 
 
+key_file_path = "keys/openai_key.txt"
+api_key = load_api_key(key_file_path)
 
+client = OpenAI(api_key=api_key)
+
+model_name = "gpt-3.5-turbo"
+prompt = "What is the process of photosynthesis?"
+n = 3  # Number of completions for each prompt
+# Use the analyze_responses_vs_logits to get the results
+results = analyze_responses_vs_logits(client, model_name, prompt, n)
+
+# Check if logits are the same
+logits_same = are_logits_same(results["Logits"])
+print(f"Are all logits the same across responses? {'Yes' if logits_same else 'No'}")
+
+
+logits_count = count_logits_in_responses(results["Logits"], n)
+print(logits_count)
