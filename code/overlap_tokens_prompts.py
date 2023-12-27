@@ -130,7 +130,9 @@ def analyze_responses_vs_logits(client, model_name, prompt, n):
     
     for logprobs_content, response in completions:
         tokens = set(extract_tokens(process_logprobs(logprobs_content)))
-        words = set([re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", i.lower() ) for i in response.split()])
+        split_response = re.split(r'\s+|[\.,;:\-!?]', response.lower())
+        words = set([re.sub(r"^[^a-zA-Z]+|[^a-zA-Z]+$", "", i) for i in split_response])
+
         all_tokens.update(tokens)
         all_words.update(words)
 
