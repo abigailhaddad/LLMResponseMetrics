@@ -45,26 +45,6 @@ def process_logprobs(logprobs_content):
     return sorted(token_probs, key=lambda x: x[1], reverse=True)
 
 
-def keyword_analysis(tokens, keywords):
-    """
-    Analyze which keywords can be formed from the tokens, considering non-sequential combinations.
-
-    :param tokens: List of tokens.
-    :param keywords: List of keywords to search for.
-    :return: Dictionary with keys True and False, values are lists of found and not found keywords.
-    """
-    found = set()
-
-    for keyword in keywords:
-        relevant_tokens = [token for token in tokens if token in keyword]
-        combined = "".join(relevant_tokens)
-        if combined == keyword:
-            found.add(keyword)
-
-    not_found = set(keywords) - found
-    return {True: list(found), False: list(not_found)}
-
-
 def extract_tokens(sorted_token_probs):
     """
     Extract tokens from sorted token probabilities, convert to lowercase, strip, and remove duplicates.
