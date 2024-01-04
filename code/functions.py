@@ -154,16 +154,19 @@ class PerturbationGenerator:
         Returns:
             list: A list of perturbations for the given prompt.
         """
-        rephrase_instruction = f"Generate {n} different ways to express:"
+        # Prepare the instruction based on the rephrase level
+        rephrase_instruction = f"Generate {n} different ways to express"
         if rephrase_level:
             rephrase_instruction += f" [{rephrase_level} rephrasing]"
         rephrase_instruction += f' "{prompt}"'
 
+        # Call the model to generate perturbations
         messages = [{"role": "user", "content": rephrase_instruction}]
         response = LLMUtility.call_model(
             self.perturbation_model, messages, self.provider, self.temperature
         )
 
+        # Parse the model response
         perturbations = self.parse_model_response(response)
 
         # Check if the number of perturbations is correct

@@ -88,23 +88,43 @@ class TestPerturbationGenerator(unittest.TestCase):
         result = self.generator.parse_model_response(response)
         self.assertEqual(result, ["- Perturbation 1", "- Perturbation 2"])
 
-    def test_get_perturbations_with_rephrase_level(self):
-        """Test generating perturbations with different rephrase levels."""
-        with patch.object(
-            self.generator,
-            "call_model",
-            return_value={
+    @patch("code.functions.LLMUtility.call_model")
+    def test_get_perturbations_with_rephrase_level(self, mock_call_model):
+        """
+        Test generating perturbations with different rephrase levels.
+        """
+        # Setup a mock response for each call to the model
+        mock_responses = {
+            None: {
                 "choices": [
                     {"message": {"content": "- Perturbation 1\n- Perturbation 2"}}
                 ]
             },
-        ):
-            for level in [None, "slightly", "moderate", "extensive"]:
-                perturbations = self.generator.get_perturbations(
-                    "test prompt", 10, level
-                )
-                self.assertEqual(len(perturbations), 10)
-                self.assertIn("- Perturbation 1", perturbations)
+            "slightly": {
+                "choices": [{"message": {"content": "- Slightly 1\n- Slightly 2"}}]
+            },
+            "moderate": {
+                "choices": [{"message": {"content": "- Moderate 1\n- Moderate 2"}}]
+            },
+            "extensive": {
+                "choices": [{"message": {"content": "- Extensive 1\n- Extensive 2"}}]
+            },
+        }
+        mock_call_model.side_effect = (
+            lambda model, messages, provider, temperature: mock_responses[
+                messages[0]["content"].split("[")[-1].split("]")[0]
+                if "[" in messages[0]["content"]
+                else None
+            ]
+        )
+
+        for level in [None, "slightly", "moderate", "extensive"]:
+            perturbations = self.generator.get_perturbations("test prompt", 5, level)
+            self.assertEqual(len(perturbations), 5)
+            self.assertIn(
+                "- Perturbation 1" if level is None else f"- {level.capitalize()} 1",
+                perturbations,
+            )
 
 
 class TestModelResponseGeneratorStability(unittest.TestCase):
