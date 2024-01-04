@@ -78,7 +78,8 @@ class TestLLMUtility(unittest.TestCase):
 
 class TestPerturbationGenerator(unittest.TestCase):
     def setUp(self):
-        self.generator = PerturbationGenerator("model", "provider")
+        # Update the initialization with a default value for num_perturbations
+        self.generator = PerturbationGenerator("mock_model", "mock_provider", 5)
 
     def test_parse_model_response(self):
         """Test parsing the model response for perturbations."""
@@ -202,7 +203,7 @@ class TestFullIntegration(unittest.TestCase):
         df = loader.load_data()
 
         # Instantiate PerturbationGenerator with mock model and provider
-        perturbation_generator = PerturbationGenerator("mock_model", "mock_provider")
+        perturbation_generator = PerturbationGenerator("mock_model", "mock_provider", 5)
 
         # Generate perturbations
         perturbations_dict = perturbation_generator.get_perturbations_for_all_prompts(

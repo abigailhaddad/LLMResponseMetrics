@@ -129,6 +129,7 @@ class PerturbationGenerator:
         perturbation_model (str): Identifier for the perturbation model to be used.
         provider (str): The provider of the perturbation model.
         temperature (float): The temperature parameter influencing the variability of generated perturbations.
+        num_perturbations (float) : The number of perturbations to generate.
 
     Methods:
         get_perturbations(prompt): Generates and returns a list of perturbed versions of the given prompt.
@@ -136,12 +137,13 @@ class PerturbationGenerator:
         get_perturbations_for_all_prompts(prompts): Generates perturbations for a list of prompts and returns a dictionary mapping each prompt to its perturbations.
     """
 
-    def __init__(self, model, provider):
+    def __init__(self, model, provider, num_perturbations):
         self.perturbation_model = model
         self.provider = provider
         self.temperature = 0
+        self.num_perturbations = num_perturbations
 
-    def get_perturbations(self, prompt, n=10, rephrase_level=None):
+    def get_perturbations(self, prompt, rephrase_level=None):
         """
         Generates perturbations for a given prompt, with an optional rephrasing level.
 
@@ -153,6 +155,7 @@ class PerturbationGenerator:
         Returns:
             list: A list of perturbations for the given prompt.
         """
+        n = self.num_perturbations
         # Prepare the instruction based on the rephrase level
         rephrase_instruction = f"Generate {n} different ways to express"
         if rephrase_level:
@@ -650,7 +653,7 @@ class LLMAnalysisPipeline:
         temperature (float): Temperature setting for the language model.
         is_file_path (bool): Flag indicating whether the input_data is a file path (True) or a list of prompts (False).
         stability_threshold (int): Number of consecutive runs required for scores to be considered stable.
-
+        num_perturbations: Number of perturbations to generate
     Methods:
         run_pipeline(): Executes the analysis pipeline, processes data, and returns a DataFrame with calculated metrics and results.
     """
@@ -667,11 +670,12 @@ class LLMAnalysisPipeline:
         temperature,
         is_file_path,
         stability_threshold,
+        num_perturbations=10,
     ):
         self.data_loader = DataLoader(input_data, is_file_path)
         self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(
-            perturbation_model[0], perturbation_model[1]
+            perturbation_model[0], perturbation_model[1], num_perturbations
         )
 
         # Create calculator instances
