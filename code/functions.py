@@ -128,7 +128,6 @@ class PerturbationGenerator:
     Attributes:
         perturbation_model (str): Identifier for the perturbation model to be used.
         provider (str): The provider of the perturbation model.
-        num_perturbations (int): The number of perturbations to be generated for each prompt. If set to 0, only the original prompt is returned.
         temperature (float): The temperature parameter influencing the variability of generated perturbations.
 
     Methods:
@@ -214,9 +213,8 @@ class PerturbationGenerator:
         perturbations_dict = {}
         for prompt in prompts:
             perturbations = [prompt]  # Include the original prompt
-            if self.num_perturbations > 0:
-                paraphrased_perturbations = self.get_perturbations(prompt)
-                perturbations.extend(paraphrased_perturbations)
+            paraphrased_perturbations = self.get_perturbations(prompt)
+            perturbations.extend(paraphrased_perturbations)
 
             perturbations_dict[prompt] = perturbations
         return perturbations_dict
