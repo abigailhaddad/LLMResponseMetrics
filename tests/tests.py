@@ -77,14 +77,34 @@ class TestLLMUtility(unittest.TestCase):
 
 
 class TestPerturbationGenerator(unittest.TestCase):
+    def setUp(self):
+        self.generator = PerturbationGenerator("model", "provider")
+
     def test_parse_model_response(self):
         """Test parsing the model response for perturbations."""
-        generator = PerturbationGenerator("model", "provider")
         response = {
             "choices": [{"message": {"content": "- Perturbation 1\n- Perturbation 2"}}]
         }
-        result = generator.parse_model_response(response)
+        result = self.generator.parse_model_response(response)
         self.assertEqual(result, ["- Perturbation 1", "- Perturbation 2"])
+
+    def test_get_perturbations_with_rephrase_level(self):
+        """Test generating perturbations with different rephrase levels."""
+        with patch.object(
+            self.generator,
+            "call_model",
+            return_value={
+                "choices": [
+                    {"message": {"content": "- Perturbation 1\n- Perturbation 2"}}
+                ]
+            },
+        ):
+            for level in [None, "slightly", "moderate", "extensive"]:
+                perturbations = self.generator.get_perturbations(
+                    "test prompt", 10, level
+                )
+                self.assertEqual(len(perturbations), 10)
+                self.assertIn("- Perturbation 1", perturbations)
 
 
 class TestModelResponseGeneratorStability(unittest.TestCase):
