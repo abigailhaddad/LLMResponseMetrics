@@ -124,7 +124,7 @@ class TestPerturbationGenerator(unittest.TestCase):
             perturbations = self.generator.get_perturbations(
                 "test prompt", rephrase_level=level
             )
-            self.assertEqual(len(perturbations), 5)  # 5 perturbations as set in setUp
+            self.assertEqual(len(perturbations), 2)  # 2 perturbations as set in setUp
             self.assertIn(
                 "- Perturbation 1" if level is None else f"- {level.capitalize()} 1",
                 perturbations,
