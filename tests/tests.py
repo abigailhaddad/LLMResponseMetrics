@@ -78,8 +78,8 @@ class TestLLMUtility(unittest.TestCase):
 
 class TestPerturbationGenerator(unittest.TestCase):
     def setUp(self):
-        # Update the initialization with a default value for num_perturbations
-        self.generator = PerturbationGenerator("mock_model", "mock_provider", 5)
+        # Initialize PerturbationGenerator with a specific num_perturbations value
+        self.generator = PerturbationGenerator("model", "provider", 5)
 
     def test_parse_model_response(self):
         """Test parsing the model response for perturbations."""
@@ -120,8 +120,11 @@ class TestPerturbationGenerator(unittest.TestCase):
         )
 
         for level in [None, "slightly", "moderate", "extensive"]:
-            perturbations = self.generator.get_perturbations("test prompt", 5, level)
-            self.assertEqual(len(perturbations), 5)
+            # Call get_perturbations with level only, n is set in setUp
+            perturbations = self.generator.get_perturbations(
+                "test prompt", rephrase_level=level
+            )
+            self.assertEqual(len(perturbations), 5)  # 5 perturbations as set in setUp
             self.assertIn(
                 "- Perturbation 1" if level is None else f"- {level.capitalize()} 1",
                 perturbations,
