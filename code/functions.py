@@ -167,7 +167,6 @@ class PerturbationGenerator:
         response = LLMUtility.call_model(
             self.perturbation_model, messages, self.provider, self.temperature
         )
-        print("Raw response from call_model:", response)
 
         # Parse the model response
         perturbations = self.parse_model_response(response)
@@ -671,13 +670,13 @@ class LLMAnalysisPipeline:
         temperature,
         is_file_path,
         stability_threshold,
-        num_perturbations=10,
+        num_perturbations= 10
     ):
         self.data_loader = DataLoader(input_data, is_file_path)
         self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(
-            perturbation_model[0], perturbation_model[1], num_perturbations
-        )
+    perturbation_model[0], perturbation_model[1], num_perturbations
+)
 
         # Create calculator instances
         self.similarity_calculator = SimilarityCalculator(similarity_model_name)
