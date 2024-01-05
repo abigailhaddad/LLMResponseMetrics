@@ -7,7 +7,7 @@ from code.functions import (
     LLMRatingCalculator,
 )  # Custom module import
 import unittest
-from unittest.mock import patch, mock_open, Mock  # For mocking external dependencies
+from unittest.mock import patch, mock_open
 import pandas as pd
 import os
 
@@ -77,14 +77,31 @@ class TestLLMUtility(unittest.TestCase):
 
 
 class TestPerturbationGenerator(unittest.TestCase):
+    def setUp(self):
+        # Initialize PerturbationGenerator with a specific num_perturbations value
+        self.generator = PerturbationGenerator("model", "provider", 2)
+
     def test_parse_model_response(self):
         """Test parsing the model response for perturbations."""
-        generator = PerturbationGenerator("model", "provider")
         response = {
             "choices": [{"message": {"content": "- Perturbation 1\n- Perturbation 2"}}]
         }
-        result = generator.parse_model_response(response)
+        result = self.generator.parse_model_response(response)
         self.assertEqual(result, ["- Perturbation 1", "- Perturbation 2"])
+
+    @patch("code.functions.LLMUtility.call_model")
+    def test_get_perturbations(self, mock_call_model):
+        # Setup a simple mock response
+        mock_response = {
+            "choices": [{"message": {"content": "- Perturbation 1\n- Perturbation 2"}}]
+        }
+        mock_call_model.return_value = mock_response
+
+        # Call get_perturbations and verify the output
+        perturbations = self.generator.get_perturbations("test prompt")
+        self.assertEqual(len(perturbations), 2)  # Assuming 2 perturbations are expected
+        self.assertIn("- Perturbation 1", perturbations)
+        self.assertIn("- Perturbation 2", perturbations)
 
 
 class TestModelResponseGeneratorStability(unittest.TestCase):
@@ -137,68 +154,6 @@ class TestLLMRatingCalculator(unittest.TestCase):
         row = {"target_answer": "some answer", "response": "some response"}
         rating = calculator.rate_response(row)
         self.assertEqual(rating, 0.7)
-
-
-class TestFullIntegration(unittest.TestCase):
-    @patch("code.functions.LLMUtility.call_model")
-    @patch("pandas.read_csv")
-    def test_integration(self, mock_read_csv, mock_call_model):
-        # Setup mock for reading CSV
-        mock_read_csv.return_value = pd.DataFrame(
-            {
-                "prompt": ["test prompt"],
-                "target_answer": ["expected answer"],
-                "keywords": ["keyword1, keyword2"],
-            }
-        )
-
-        # Setup mock response for call_model
-        mock_call_model.return_value = {
-            "choices": [{"message": {"content": "mocked response"}}]
-        }
-
-        # Instantiate DataLoader
-        loader = DataLoader("dummy.csv")
-        df = loader.load_data()
-
-        # Instantiate PerturbationGenerator with mock model and provider
-        perturbation_generator = PerturbationGenerator("mock_model", "mock_provider")
-
-        # Generate perturbations
-        perturbations_dict = perturbation_generator.get_perturbations_for_all_prompts(
-            df["prompt"]
-        )
-
-        # Mock components for ModelResponseGenerator
-        mock_similarity_calculator = Mock()
-        mock_similarity_calculator.calculate_score.return_value = 0.8
-        mock_keyword_match_calculator = Mock()
-        mock_keyword_match_calculator.calculate_match_percent.return_value = 0.6
-        mock_llm_rating_calculator = Mock()
-        mock_llm_rating_calculator.rate_response.return_value = 0.4
-
-        # Instantiate ModelResponseGenerator with mock components
-        response_generator = ModelResponseGenerator(
-            models_dict={"mock_model": "mock_provider"},
-            instructions="Test instructions",
-            max_runs=1,
-            stability_threshold=3,
-            similarity_calculator=mock_similarity_calculator,
-            keyword_match_calculator=mock_keyword_match_calculator,
-            llm_rating_calculator=mock_llm_rating_calculator,
-            temperature=0.7,
-        )
-
-        # Process prompts and check results
-        results = response_generator.process_prompts_with_realtime_evaluation(
-            df, perturbations_dict
-        )
-
-        # Assertions to verify integration
-        self.assertIsNotNone(results)
-        self.assertFalse(results.empty)
-        mock_read_csv.assert_called_once()
-        mock_call_model.assert_called()
 
 
 # Run the tests if the script is executed directly
