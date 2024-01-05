@@ -92,9 +92,7 @@ class TestPerturbationGenerator(unittest.TestCase):
     @patch("code.functions.LLMUtility.call_model")
     def test_get_perturbations(self, mock_call_model):
         # Setup a simple mock response
-        mock_response = {
-            "choices": [{"message": {"content": "- Perturbation 1\n- Perturbation 2"}}]
-        }
+        mock_response = {"choices": [{"message": {"content": "- Perturbation 1\n- Perturbation 2"}}]}
         mock_call_model.return_value = mock_response
 
         # Call get_perturbations and verify the output
@@ -102,7 +100,6 @@ class TestPerturbationGenerator(unittest.TestCase):
         self.assertEqual(len(perturbations), 2)  # Assuming 2 perturbations are expected
         self.assertIn("- Perturbation 1", perturbations)
         self.assertIn("- Perturbation 2", perturbations)
-
 
 class TestModelResponseGeneratorStability(unittest.TestCase):
     def setUp(self):
