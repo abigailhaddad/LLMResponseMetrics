@@ -1,4 +1,4 @@
 env/
 keys/
-.ipynb_checkpoints/
+code/.ipynb_checkpoints/
 *.pyc
