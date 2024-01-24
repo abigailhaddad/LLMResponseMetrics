@@ -66,6 +66,7 @@ class DataLoader:
 
 class LLMUtility:
     @staticmethod
+
     def read_api_key(provider: str) -> str:
         """
         Reads the API key for a given provider from environment variables.
@@ -78,11 +79,12 @@ class LLMUtility:
         """
         # Construct the environment variable name for the API key
         key_var_name = f"{provider.upper()}_KEY"
-
+    
         try:
             return os.environ[key_var_name]
         except KeyError:
             raise EnvironmentError(f"Environment variable '{key_var_name}' not found.")
+
 
     @staticmethod
     def call_model(model: str, messages: list, provider: str, temperature: float):
@@ -530,7 +532,7 @@ class SimilarityCalculator:
             model_output = self.model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
-
+    
     def calculate_similarity(self, embedding1, embedding2):
         """
         Calculates the cosine similarity between two embeddings.
@@ -553,7 +555,6 @@ class SimilarityCalculator:
             else None,
             axis=1,
         )
-
 
 class KeywordMatchCalculator:
     def calculate_match_percent(self, target_keywords, actual_responses):
