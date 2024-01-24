@@ -540,7 +540,7 @@ class SimilarityCalculator:
             model_output = self.model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
-
+    
     def calculate_similarity(self, embedding1, embedding2):
         """
         Calculates the cosine similarity between two embeddings.
@@ -563,7 +563,6 @@ class SimilarityCalculator:
             else None,
             axis=1,
         )
-
 
 class KeywordMatchCalculator:
     def calculate_match_percent(self, target_keywords, actual_responses):
