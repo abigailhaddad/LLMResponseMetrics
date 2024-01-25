@@ -5,7 +5,6 @@ from litellm import completion
 from transformers import AutoTokenizer, AutoModel
 import torch
 from scipy.spatial.distance import cosine
-from nltk.tokenize import sent_tokenize
 import glob
 import logging
 import litellm
