@@ -63,22 +63,17 @@ class TestDataLoader(unittest.TestCase):
 
 
 class TestLLMUtility(unittest.TestCase):
-    @patch.dict('os.environ', {'OPENAI_KEY': 'test_api_key'})
-    def test_read_api_key(self):
+    @patch("builtins.open", new_callable=mock_open, read_data="test_api_key")
+    def test_read_api_key(self, mock_file):
         # Call the method
         result = LLMUtility.read_api_key("OPENAI")
 
-        # Assert that the result matches the expected value
+        # Construct the expected file path
+        expected_file_path = os.path.join(os.getcwd(), "..", "keys", "openai_key.txt")
+
+        # Assert the file was opened with the correct path
+        mock_file.assert_called_with(expected_file_path, "r")
         self.assertEqual(result, "test_api_key")
-
-    @patch.dict('os.environ', {})
-    def test_read_api_key_missing_variable(self):
-        # Call the method and expect it to raise EnvironmentError
-        with self.assertRaises(EnvironmentError) as context:
-            LLMUtility.read_api_key("OPENAI")
-
-        # Assert that the correct error message is raised
-        self.assertIn("Environment variable 'OPENAI_KEY' not found.", str(context.exception))
 
 
 class TestPerturbationGenerator(unittest.TestCase):

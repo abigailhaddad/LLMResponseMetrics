@@ -16,7 +16,7 @@ There are four general parts to this framework:
 
 ## Inputs
 - Input CSV file with columns: 'prompt', 'target_answer', and 'keywords'. 'Prompt' is the question, 'target_answer' is the answer we're testing closeness to, and 'keywords' are important words appearing in that target answer. You can pass the filepath to the .csv file as a parameter to the pipeline. 
-- API keys for the LLMs are required to be set as environment variables. The expected format is <PROVIDER>_KEY (e.g., OPENAI_KEY for OpenAI).
+- API keys for the LLM or LLMs being used are stored in a 'keys' directory at the same level as the code. The structure of each API key is `<provider>_key.txt` - for instance, "openai_key.txt".
 
 ## Process Flow
 1. **Data Preparation**: Loads the necessary data, including prompts and target answers.

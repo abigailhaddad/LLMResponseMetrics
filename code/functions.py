@@ -65,25 +65,33 @@ class DataLoader:
 
 class LLMUtility:
     @staticmethod
-
     def read_api_key(provider: str) -> str:
         """
-        Reads the API key for a given provider from environment variables.
-        Args:
-            provider (str): The name of the provider, e.g., 'OPENAI' or 'ANTHROPIC'.
-        Returns:
-            The API key as a string.
-        Raises:
-            EnvironmentError: If the API key environment variable does not exist.
-        """
-        # Construct the environment variable name for the API key
-        key_var_name = f"{provider.upper()}_KEY"
-    
-        try:
-            return os.environ[key_var_name]
-        except KeyError:
-            raise EnvironmentError(f"Environment variable '{key_var_name}' not found.")
+        Reads the API key for a given provider from a file located in a 'keys' directory
+        above the current working directory.
 
+        Args:
+        provider (str): The name of the provider, e.g., 'OPENAI' or 'ANTHROPIC'.
+
+        Returns:
+        The API key as a string.
+
+        Raises:
+        FileNotFoundError: If the API key file does not exist.
+        """
+        # Construct the file path for the API key file
+        key_filename = f"{provider.lower()}_key.txt"
+        # Adjust the path to look for the 'keys' folder at the same level as the script directory
+        key_folder_path = os.path.join(os.getcwd(), "..", "keys")
+        key_file_path = os.path.join(key_folder_path, key_filename)
+
+        try:
+            with open(key_file_path, "r") as file:
+                return file.read().strip()
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"API key file '{key_filename}' not found in '{key_folder_path}'."
+            )
 
     @staticmethod
     def call_model(model: str, messages: list, provider: str, temperature: float):
@@ -531,12 +539,6 @@ class SimilarityCalculator:
             model_output = self.model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
-    
-    def calculate_similarity(self, embedding1, embedding2):
-        """
-        Calculates the cosine similarity between two embeddings.
-        """
-        return 1 - cosine(embedding1, embedding2)
 
     def calculate_similarity_scores(self, df):
         """
@@ -554,6 +556,7 @@ class SimilarityCalculator:
             else None,
             axis=1,
         )
+
 
 class KeywordMatchCalculator:
     def calculate_match_percent(self, target_keywords, actual_responses):
@@ -667,13 +670,13 @@ class LLMAnalysisPipeline:
         temperature,
         is_file_path,
         stability_threshold,
-        num_perturbations=10,
+        num_perturbations= 10
     ):
         self.data_loader = DataLoader(input_data, is_file_path)
         self.temperature = temperature
         self.perturbation_generator = PerturbationGenerator(
-            perturbation_model[0], perturbation_model[1], num_perturbations
-        )
+    perturbation_model[0], perturbation_model[1], num_perturbations
+)
 
         # Create calculator instances
         self.similarity_calculator = SimilarityCalculator(similarity_model_name)
