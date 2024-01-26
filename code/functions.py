@@ -1053,23 +1053,12 @@ class Visualization:
         melted_df = closest_distances_df.melt(id_vars=["response"], value_vars=distance_type_columns, var_name="Distance Type", value_name="Distance")
 
         melted_df["Distance Type"] = melted_df["Distance Type"].replace({
-        "closest_intra_distance": "Intra-label",
-        "closest_inter_distance": "Inter-label",
+            "closest_intra_distance": "Intra-label",
+            "closest_inter_distance": "Inter-label",
         })
 
-        # Create the violin plot
-        fig = px.violin(melted_df, x="Distance Type", y="Distance", box=False, points=False, color="Distance Type")
-
-        # Add swarmplot-like markers
-        for dist_type in melted_df['Distance Type'].unique():
-            dist_df = melted_df[melted_df['Distance Type'] == dist_type]
-            fig.add_trace(go.Scatter(
-            x=dist_df['Distance Type'], 
-            y=dist_df['Distance'],
-            mode='markers',
-            marker=dict(color='black', size=4),
-            name=f'{dist_type} points'
-            ))
+        # Create the violin plot with individual points
+        fig = px.violin(melted_df, x="Distance Type", y="Distance", box=False, points='all', color="Distance Type")
 
         # Update layout
         fig.update_layout(
@@ -1078,9 +1067,10 @@ class Visualization:
             yaxis_title="Distance",
             width=800,
             height=600
-            )
+        )
 
         fig.show()
+
 
     def plot_optimal_cluster_heatmap(
         self, cluster_label_column="cluster_level_optimal", label_column="label"
