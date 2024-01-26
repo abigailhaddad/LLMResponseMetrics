@@ -40,14 +40,6 @@ There are three components to each of these:
 - Ensure that your API keys are correctly placed in the `keys` folder.
 - Set up your .csv file, ensure it has the correct variables, and set the `input_data` parameter to its filepath. 
 
-### Running the Pipeline
-1. Import the necessary classes from `functions.py`.
-2. Initialize the `LLMAnalysisPipeline` with your specific configurations.
-3. Call the `run_pipeline` method to process the data and generate responses.
-4. Alternatively, use the `demo.ipynb` notebook.
-
-
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
