@@ -4,3 +4,4 @@ transformers
 torch
 scipy
 plotly
+scikit-learn
