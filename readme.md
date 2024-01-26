@@ -2,72 +2,24 @@
 
 ## Overview
 
-The LLM Analysis Pipeline is a tool which takes existing question/answer pairs and sees how close an LLM can get to producing each target answer. The goal of this is to test if the LLM 'knows' the answer to the question, and to do so in a more automatic and systematic way than you could do using a chat interface and repeatedly asking the same question. 
+The LLM Analysis Pipeline is a tool for automating asking an LLM a question or set of questions and determining if it 'knows' the answer. That is, if you ask repeatedly and in different ways, what will it say?
 
-You can think of this as sampling from a population where the population is the universe of responses that the LLM might give in response to the question. 
+There are two different frameworks for this: one where you have just a list of questions (**Open Ended Text Analysis**) and one where you have a list of questions and corresponding answers (**Closed Ended Text Analysis**), and you want to see how close the LLM can get to those answers. 
 
-There are four general parts to this framework:
+There are three components to each of these:
 
-1. **Parameters which vary**: The two parameters which vary are initial question, which is perturbed to change the wording while preserving the general meaning, and the temperature. 
-2. **Evaluation criteria**: There needs to be a method to evaluate "closeness" to the target answer. This uses three methods described below.
-3. **A process for varying parameters**: This tool currently varies both perturbation and temperature randomly. A more sophisticated method would prioritize searching the space around the best-performing parameters.
-4. **Stopping criteria**: This currently uses two criteria for stopping the process of getting new responses from the LLM. First, if the maximum ('best') results are stable across a certain number of periods defined by the `stability_threshold` parameter, the process will stop pulling new responses from the LLM. Alternatively, if stability is not reached, the process will stop after a certain number of periods defined by the `max_runs` parameter. 
+1. **Sampling**: We vary parameters (currently, temperature and perturbation, or how we word the question) and we hit the LLM API get to a response. 
+2. **Stopping**: We determine when the responses are stable. In the case of **Closed Ended Text Analysis**, that's when when we're not getting any closer to the corresponding text. For **Open Ended Text Analysis**, that's when we're no longer seeing novel responses. At that point, we stop. 
+3. **Flagging**: We determine what a person should review. For **Closed Ended Text Analysis**, those are the closest responses. For **Open Ended Text Analysis**, we sample the responses to return a represenative range for review.
 
-
-## Inputs
-- Input CSV file with columns: 'prompt', 'target_answer', and 'keywords'. 'Prompt' is the question, 'target_answer' is the answer we're testing closeness to, and 'keywords' are important words appearing in that target answer. You can pass the filepath to the .csv file as a parameter to the pipeline. 
-- API keys for the LLMs are required to be set as environment variables. The expected format is <PROVIDER>_KEY (e.g., OPENAI_KEY for OpenAI).
-
-## Process Flow
-1. **Data Preparation**: Loads the necessary data, including prompts and target answers.
-2. **Prompt Perturbation**: Generates various versions of each prompt using an LLM.
-3. **Response Generation and Evaluation:** Obtains and evaluates responses from the LLM.
-4. **Stability/Stopping Criteria:** The pipeline monitors the consistency of maximum evaluation scores across multiple runs, halting further analysis for each prompt once stable maxumum scores are achieved. 
-5. **Aggregation:** Aggregates and shows the top responses according to each evaluation method. (This is not part of the pipeline.)
-
-
-## Evaluation Methods
-1. **Keyword Matching**: Analyzes the presence of predefined keywords in the LLM's responses.
-2. **Semantic Similarity**: Using a Hugging Face model to put the target answer and LLM's response in the same semantic space so that a silarity scores can be calculated.
-3. **LLM Response Analysis**: Uses another LLM to rate how closely the LLM's response matches the target answer.
-
-## Configuration and Sample Parameters
-```python
-models_dict = {
-    'claude-2.1':  "ANTHROPIC", 
-    'gpt-3.5-turbo-0301': "OPENAI"
-               } # these are the models we're testing
-csv_file_path = '../data/prompt_target_answer_pairs.csv'
-similarity_model_name = 'sentence-transformers/paraphrase-mpnet-base-v2' # this is the model for calculating similarity scores with
-temperature = "variable"
-is_file_path = True
-max_runs= 10
-llm_evaluation_model = ['gpt-4', "OPENAI"]
-instructions = "Please answer thoroughly: "
-perturbation_model = ['gpt-4', "OPENAI"] # This is the model for generating perturbations. I recommend using GPT-4.
-stability_threshold= 3
-
-pipeline = LLMAnalysisPipeline(
-    input_data=csv_file_path, 
-    models_dict=models_dict, 
-    perturbation_model=perturbation_model, 
-    llm_evaluation_model=llm_evaluation_model,
-    temperature = temperature,
-    max_runs= max_runs,
-    is_file_path = is_file_path,
-    similarity_model_name = similarity_model_name,
-    instructions = instructions,
-    stability_threshold = stability_threshold
-
-)
-```
 
 ## Files
-- `functions.py`: This has the code for running the pipeline.
-- `demo.ipynb`: A Jupyter notebook demonstrating the pipeline usage.
-- `population_max_simulation_demo.ipynb`: A Jupyter notebook simulating sampling to find maximum scores in a population.
 - `requirements.txt`: Lists all the Python package dependencies.
-- `litellm_demo.py`: A simple script showcasing basic usage of the `litellm` library for API calls.
+- `ClosedEndedTextAnalysis.ipynb`: A Jupyter notebook demonstrating the pipeline usage for if you have questions and the corresponding answers you're looking for
+- `OpenEndedTextAnalysis.ipynb`: A Jupyter notebook demonstrating the pipeline usage for if you have questions but no corresponding answers, and you want to see the full range of outputs
+- `functions.py`: This has the functions that are imported in the above .ipynb files.
+- `population_max_simulation_demo.ipynb`: A Jupyter notebook simulating sampling to find maximum scores in a population.
+- `api_call_demo.py`: A simple script showcasing basic usage of the `litellm` library for API calls.
 
 ## What Models Can I Use?
 
@@ -94,8 +46,7 @@ pipeline = LLMAnalysisPipeline(
 3. Call the `run_pipeline` method to process the data and generate responses.
 4. Alternatively, use the `demo.ipynb` notebook.
 
-### Analyzing the Output
-The pipeline output DataFrame (`df_responses` if you use `demo.ipynb`) contains the responses along with each metric calculated. You can further analyze these results using your preferred data analysis tools or use the analysis provided in the `demo.ipynb` notebook. 
+
 
 ## License
 
