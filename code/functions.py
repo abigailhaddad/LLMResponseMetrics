@@ -7,12 +7,12 @@ import torch
 import glob
 import logging
 import litellm
-import seaborn as sns
-import matplotlib.pyplot as plt
 import string
 import plotly.express as px
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
 from scipy.spatial.distance import cosine, pdist, squareform
-from scipy.cluster.hierarchy import dendrogram, linkage, linkage, fcluster
+from scipy.cluster.hierarchy import linkage, linkage, fcluster
 from sklearn.cluster import AgglomerativeClustering
 
 
@@ -72,7 +72,6 @@ class DataLoader:
 
 class LLMUtility:
     @staticmethod
-
     def read_api_key(provider: str) -> str:
         """
         Reads the API key for a given provider from environment variables.
@@ -85,12 +84,11 @@ class LLMUtility:
         """
         # Construct the environment variable name for the API key
         key_var_name = f"{provider.upper()}_KEY"
-    
+
         try:
             return os.environ[key_var_name]
         except KeyError:
             raise EnvironmentError(f"Environment variable '{key_var_name}' not found.")
-
 
     @staticmethod
     def call_model(model: str, messages: list, provider: str, temperature: float):
@@ -437,6 +435,8 @@ class ResultAggregator:
             suffixes=("_best", "_worst"),
         )
         return best_worst_merged
+    
+    
 
 
 class SimilarityCalculator:
@@ -538,7 +538,7 @@ class SimilarityCalculator:
             model_output = self.model(**encoded_input)
         embeddings = model_output.last_hidden_state.mean(dim=1)
         return embeddings
-    
+
     def calculate_similarity(self, embedding1, embedding2):
         """
         Calculates the cosine similarity between two embeddings.
@@ -561,6 +561,7 @@ class SimilarityCalculator:
             else None,
             axis=1,
         )
+
 
 class KeywordMatchCalculator:
     def calculate_match_percent(self, target_keywords, actual_responses):
@@ -759,6 +760,7 @@ def del_file():
     for file in temp_files:
         os.remove(file)
 
+
 class UniqueWordAnalysis:
     def __init__(self, df):
         """
@@ -779,7 +781,7 @@ class UniqueWordAnalysis:
         Returns:
             set: Set of unique words in the cleaned text.
         """
-        text = text.translate(str.maketrans('', '', string.punctuation))
+        text = text.translate(str.maketrans("", "", string.punctuation))
         return set(text.lower().split())
 
     def add_unique_words_column(self):
@@ -789,8 +791,7 @@ class UniqueWordAnalysis:
         Returns:
             pd.DataFrame: DataFrame with the new column added.
         """
-        return self.df['response'].apply(self._clean_text)
-
+        return self.df["response"].apply(self._clean_text)
 
     def calculate_new_unique_words_by_group(self):
         """
@@ -801,9 +802,13 @@ class UniqueWordAnalysis:
         """
         new_words_series = pd.Series(dtype=object, index=self.df.index)
 
-        for _, group in self.df.groupby(['model', 'original_prompt']):
+        for _, group in self.df.groupby(["model", "original_prompt"]):
             seen_words = set()
-            new_words_series[group.index] = group['UniqueWords'].apply(lambda words_set: words_set - seen_words or seen_words.update(words_set) or words_set - seen_words)
+            new_words_series[group.index] = group["UniqueWords"].apply(
+                lambda words_set: words_set - seen_words
+                or seen_words.update(words_set)
+                or words_set - seen_words
+            )
 
         return new_words_series
 
@@ -816,13 +821,16 @@ class UniqueWordAnalysis:
         """
         cumulative_counts_series = pd.Series(dtype=int, index=self.df.index)
 
-        for _, group in self.df.groupby(['model', 'original_prompt']):
+        for _, group in self.df.groupby(["model", "original_prompt"]):
             all_words = set()
-            cumulative_counts = group['UniqueWords'].apply(lambda words_set: len(all_words.union(words_set)) and all_words.update(words_set) or len(all_words))
+            cumulative_counts = group["UniqueWords"].apply(
+                lambda words_set: len(all_words.union(words_set))
+                and all_words.update(words_set)
+                or len(all_words)
+            )
             cumulative_counts_series[group.index] = cumulative_counts
 
         return cumulative_counts_series
-
 
     def calculate_cumulative_word_percentages(self):
         """
@@ -832,14 +840,23 @@ class UniqueWordAnalysis:
             pd.Series: Series with cumulative word percentages for each run.
         """
         # Group by 'model' and 'original_prompt', then apply a custom function to calculate percentages
-        cumulative_percentage_series = self.df.groupby(['model', 'original_prompt']).apply(
-        lambda group: group['CumulativeUniqueWords'] / group['CumulativeUniqueWords'].max() * 100
-    ).fillna(0)
+        cumulative_percentage_series = (
+            self.df.groupby(["model", "original_prompt"])
+            .apply(
+                lambda group: group["CumulativeUniqueWords"]
+                / group["CumulativeUniqueWords"].max()
+                * 100
+            )
+            .fillna(0)
+        )
 
         # Flatten the multi-index series to match the original DataFrame's index
-        cumulative_percentage_series = cumulative_percentage_series.reset_index(level=[0, 1], drop=True)
+        cumulative_percentage_series = cumulative_percentage_series.reset_index(
+            level=[0, 1], drop=True
+        )
 
         return cumulative_percentage_series
+
 
 class ClusterAnalysis:
     def __init__(self, df):
@@ -866,10 +883,14 @@ class ClusterAnalysis:
         intra_distances = []
 
         for label in unique_labels:
-            cluster_embeddings = np.array(self.df[self.df[label_col] == label][embeddings_col].tolist())
-            distances = [cosine(cluster_embeddings[i], cluster_embeddings[j]) 
-                         for i in range(len(cluster_embeddings)) 
-                         for j in range(i + 1, len(cluster_embeddings))]
+            cluster_embeddings = np.array(
+                self.df[self.df[label_col] == label][embeddings_col].tolist()
+            )
+            distances = [
+                cosine(cluster_embeddings[i], cluster_embeddings[j])
+                for i in range(len(cluster_embeddings))
+                for j in range(i + 1, len(cluster_embeddings))
+            ]
             intra_distances.extend(distances)
 
         return np.mean(intra_distances)
@@ -891,11 +912,17 @@ class ClusterAnalysis:
         for i, label_i in enumerate(unique_labels):
             for j, label_j in enumerate(unique_labels):
                 if i < j:
-                    embeddings_i = np.array(self.df[self.df[label_col] == label_i][embeddings_col].tolist())
-                    embeddings_j = np.array(self.df[self.df[label_col] == label_j][embeddings_col].tolist())
-                    distances = [cosine(embeddings_i[k], embeddings_j[l]) 
-                                 for k in range(len(embeddings_i)) 
-                                 for l in range(len(embeddings_j))]
+                    embeddings_i = np.array(
+                        self.df[self.df[label_col] == label_i][embeddings_col].tolist()
+                    )
+                    embeddings_j = np.array(
+                        self.df[self.df[label_col] == label_j][embeddings_col].tolist()
+                    )
+                    distances = [
+                        cosine(embeddings_i[k], embeddings_j[l])
+                        for k in range(len(embeddings_i))
+                        for l in range(len(embeddings_j))
+                    ]
                     inter_distances.extend(distances)
 
         return np.mean(inter_distances)
@@ -912,7 +939,9 @@ class ClusterAnalysis:
             np.array: Array of cluster labels.
         """
         embeddings = np.array(self.df[embeddings_col].tolist())
-        cluster_model = AgglomerativeClustering(n_clusters=num_clusters, metric='euclidean', linkage='ward')
+        cluster_model = AgglomerativeClustering(
+            n_clusters=num_clusters, metric="euclidean", linkage="ward"
+        )
         labels = cluster_model.fit_predict(embeddings)
         return labels
 
@@ -924,12 +953,16 @@ class ClusterAnalysis:
             embeddings_col (str): Column name for embeddings.
         """
         embeddings = np.array(self.df[embeddings_col].tolist())
-        Z = linkage(embeddings, method='ward')
-        plt.figure(figsize=(10, 7))
-        plt.title('Hierarchical Clustering Dendrogram')
-        dendrogram(Z, truncate_mode='level', p=5)
-        plt.xlabel("Number of points in node (or index of point if no parenthesis).")
-        plt.show()
+        Z = linkage(embeddings, method="ward")
+        fig = ff.create_dendrogram(embeddings, linkagefun=lambda x: linkage(x, "ward"))
+        fig.update_layout(
+            width=800,
+            height=500,
+            title_text="Hierarchical Clustering Dendrogram",
+            xaxis_title="Number of points in node (or index of point if no parenthesis)",
+        )
+        fig.show()
+
 
 class Visualization:
     def __init__(self, df):
@@ -941,7 +974,14 @@ class Visualization:
         """
         self.df = df
 
-    def create_line_plot(self, x_column, y_column, title, y_title, color_discrete_sequence=px.colors.qualitative.Bold):
+    def create_line_plot(
+        self,
+        x_column,
+        y_column,
+        title,
+        y_title,
+        color_discrete_sequence=px.colors.qualitative.Bold,
+    ):
         """
         Creates a line plot with the specified parameters.
 
@@ -955,32 +995,53 @@ class Visualization:
         Returns:
             None: This method will display the plot.
         """
-        fig = px.line(self.df,
-                      x=x_column,
-                      y=y_column,
-                      color='original_prompt',
-                      title=title,
-                      color_discrete_sequence=color_discrete_sequence)
+        fig = px.line(
+            self.df,
+            x=x_column,
+            y=y_column,
+            color="original_prompt",
+            title=title,
+            color_discrete_sequence=color_discrete_sequence,
+        )
 
         fig.update_layout(
-            plot_bgcolor='white',
-            xaxis=dict(title='Run Number', showline=True, showgrid=False, linecolor='black', tickformat=','),
-            yaxis=dict(title=y_title, showgrid=True, gridcolor='lightgray', linecolor='black', tickformat=','),
-            legend=dict(orientation='h', y=-0.3, yanchor='top', x=0.5, xanchor='center', title_text=''),
+            plot_bgcolor="white",
+            xaxis=dict(
+                title="Run Number",
+                showline=True,
+                showgrid=False,
+                linecolor="black",
+                tickformat=",",
+            ),
+            yaxis=dict(
+                title=y_title,
+                showgrid=True,
+                gridcolor="lightgray",
+                linecolor="black",
+                tickformat=",",
+            ),
+            legend=dict(
+                orientation="h",
+                y=-0.3,
+                yanchor="top",
+                x=0.5,
+                xanchor="center",
+                title_text="",
+            ),
             margin=dict(l=20, r=20, t=60, b=40),
-            title_x=0.5
+            title_x=0.5,
         )
 
         fig.update_traces(line=dict(width=2), marker=dict(size=7, opacity=0.7))
         fig.update_layout(
-            title_font=dict(size=18, family='Arial, sans-serif', color='black'),
-            font=dict(family='Helvetica, sans-serif', size=12, color='black')
+            title_font=dict(size=18, family="Arial, sans-serif", color="black"),
+            font=dict(family="Helvetica, sans-serif", size=12, color="black"),
         )
         fig.show()
-
-    def plot_distance_violin(self, closest_distances_df, distance_type_columns=['closest_intra_distance', 'closest_inter_distance']):
+    
+    def plot_distance_violin(self, closest_distances_df, distance_type_columns=["closest_intra_distance", "closest_inter_distance"]):
         """
-        Creates a violin plot for displaying distribution of distances.
+        Creates a violin plot for displaying distribution of distances in Plotly.
 
         Args:
             closest_distances_df (pd.DataFrame): DataFrame containing distance data.
@@ -989,25 +1050,43 @@ class Visualization:
         Returns:
             None: This method will display the plot.
         """
-        melted_df = closest_distances_df.melt(id_vars=['response'], 
-                                              value_vars=distance_type_columns,
-                                              var_name='Distance Type', 
-                                              value_name='Distance')
+        melted_df = closest_distances_df.melt(id_vars=["response"], value_vars=distance_type_columns, var_name="Distance Type", value_name="Distance")
 
-        melted_df['Distance Type'] = melted_df['Distance Type'].replace({
-            'closest_intra_distance': 'Intra-label', 
-            'closest_inter_distance': 'Inter-label'
+        melted_df["Distance Type"] = melted_df["Distance Type"].replace({
+        "closest_intra_distance": "Intra-label",
+        "closest_inter_distance": "Inter-label",
         })
 
-        plt.figure(figsize=(10, 6))
-        sns.violinplot(x='Distance Type', y='Distance', data=melted_df, alpha=0.5)
-        sns.swarmplot(x='Distance Type', y='Distance', data=melted_df, color='black', size=3)
-        plt.title('Density and Distribution of Closest Intra-Label and Inter-Label Distances')
-        plt.show()
+        # Create the violin plot
+        fig = px.violin(melted_df, x="Distance Type", y="Distance", box=False, points=False, color="Distance Type")
 
-    def plot_optimal_cluster_heatmap(self, cluster_label_column='cluster_level_optimal', label_column='label'):
+        # Add swarmplot-like markers
+        for dist_type in melted_df['Distance Type'].unique():
+            dist_df = melted_df[melted_df['Distance Type'] == dist_type]
+            fig.add_trace(go.Scatter(
+            x=dist_df['Distance Type'], 
+            y=dist_df['Distance'],
+            mode='markers',
+            marker=dict(color='black', size=4),
+            name=f'{dist_type} points'
+            ))
+
+        # Update layout
+        fig.update_layout(
+            title="Density and Distribution of Closest Intra-Label and Inter-Label Distances",
+            xaxis_title="Distance Type",
+            yaxis_title="Distance",
+            width=800,
+            height=600
+            )
+
+        fig.show()
+
+    def plot_optimal_cluster_heatmap(
+        self, cluster_label_column="cluster_level_optimal", label_column="label"
+    ):
         """
-        Creates a heatmap for visualizing the distribution of clusters.
+        Creates a heatmap for visualizing the distribution of clusters using Plotly.
 
         Args:
             cluster_label_column (str): Column name for cluster labels.
@@ -1017,12 +1096,29 @@ class Visualization:
             None: This method will display the plot.
         """
         ct = pd.crosstab(self.df[label_column], self.df[cluster_label_column])
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(ct, annot=True, cmap="YlGnBu", fmt='g')
-        plt.title('Cross-tabulation of Original Labels and Optimal Hierarchical Clusters')
-        plt.xlabel('Optimal Cluster')
-        plt.ylabel('Original Label')
-        plt.show()
+
+        # Create the heatmap
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=ct.values,
+                x=ct.columns,
+                y=ct.index,
+                colorscale="YlGnBu",
+                colorbar=dict(title="Count"),
+            )
+        )
+
+        # Update layout
+        fig.update_layout(
+            title="Cross-tabulation of Original Labels and Optimal Hierarchical Clusters",
+            xaxis_title="Optimal Cluster",
+            yaxis_title="Original Label",
+            width=800,
+            height=600,
+        )
+
+        fig.show()
+
 
 class EmbeddingAnalysis:
     def __init__(self, df, embeddings_col):
@@ -1048,7 +1144,7 @@ class EmbeddingAnalysis:
         """
         embeddings = np.array(self.df[self.embeddings_col].tolist())
         labels = self.df[label_col].to_numpy()
-        pairwise_distances = squareform(pdist(embeddings, metric='cosine'))
+        pairwise_distances = squareform(pdist(embeddings, metric="cosine"))
         closest_distances = []
 
         for i, label in enumerate(labels):
@@ -1058,14 +1154,20 @@ class EmbeddingAnalysis:
             inter_distances = pairwise_distances[i][labels != label]
 
             # Find closest distances
-            closest_intra = np.min(intra_distances) if intra_distances.size > 0 else np.inf
-            closest_inter = np.min(inter_distances) if inter_distances.size > 0 else np.inf
+            closest_intra = (
+                np.min(intra_distances) if intra_distances.size > 0 else np.inf
+            )
+            closest_inter = (
+                np.min(inter_distances) if inter_distances.size > 0 else np.inf
+            )
 
-            closest_distances.append({
-            'response': self.df.iloc[i]['response'],
-            'closest_intra_distance': closest_intra,
-            'closest_inter_distance': closest_inter
-            })
+            closest_distances.append(
+                {
+                    "response": self.df.iloc[i]["response"],
+                    "closest_intra_distance": closest_intra,
+                    "closest_inter_distance": closest_inter,
+                }
+            )
 
         return pd.DataFrame(closest_distances)
 
@@ -1079,7 +1181,7 @@ class EmbeddingAnalysis:
         embeddings = np.array(self.df[self.embeddings_col].tolist())
         # [Code for calculating the optimal number of clusters]
 
-        Z = linkage(embeddings, method='ward')
+        Z = linkage(embeddings, method="ward")
 
         # Retrieve the last ten distances
         last = Z[-10:, 2]
@@ -1104,12 +1206,14 @@ class EmbeddingAnalysis:
         embeddings = np.array(self.df[self.embeddings_col].tolist())
         # [Code for creating cluster levels]
 
-        Z = linkage(embeddings, method='ward')
+        Z = linkage(embeddings, method="ward")
 
         # Find significant levels by looking at large increases in merge distances
         distances = Z[:, 2]
         distance_diffs = np.diff(distances)
-        threshold = np.percentile(distance_diffs, 75)  # Using the 75th percentile as a threshold
+        threshold = np.percentile(
+            distance_diffs, 75
+        )  # Using the 75th percentile as a threshold
 
         # Identify significant increases
         significant_increases = distance_diffs > threshold
@@ -1119,7 +1223,7 @@ class EmbeddingAnalysis:
         reversed_levels = levels[::-1]
 
         for idx, level in enumerate(reversed_levels, start=1):
-            self.df[f'cluster_level_{idx}'] = fcluster(Z, level, criterion='distance')
+            self.df[f"cluster_level_{idx}"] = fcluster(Z, level, criterion="distance")
 
         return self.df
 
@@ -1135,11 +1239,15 @@ class EmbeddingAnalysis:
         """
         cluster_samples = {}
 
-        cluster_cols = [col for col in self.df.columns if col.startswith("cluster_level_")]
+        cluster_cols = [
+            col for col in self.df.columns if col.startswith("cluster_level_")
+        ]
         cluster_samples = {}
 
         for cluster_col in cluster_cols:
-            cluster_samples[cluster_col] = self.hierarchical_random_sample(cluster_col, samples_per_cluster)
+            cluster_samples[cluster_col] = self.hierarchical_random_sample(
+                cluster_col, samples_per_cluster
+            )
 
         return cluster_samples
 
@@ -1154,10 +1262,13 @@ class EmbeddingAnalysis:
         Returns:
             pd.DataFrame: DataFrame containing the sampled entries.
         """
-        return self.df.groupby(cluster_column).apply(lambda x: x.sample(samples_per_cluster)).reset_index(drop=True)
+        return (
+            self.df.groupby(cluster_column)
+            .apply(lambda x: x.sample(samples_per_cluster))
+            .reset_index(drop=True)
+        )
 
 
-    
 class PairwiseAnalysis:
     def __init__(self, df, embeddings_col, label_col):
         """
@@ -1187,7 +1298,7 @@ class PairwiseAnalysis:
         labels = self.df[self.label_col].to_numpy()
 
         # Calculate pairwise distances
-        pairwise_distances = squareform(pdist(embeddings, metric='cosine'))
+        pairwise_distances = squareform(pdist(embeddings, metric="cosine"))
 
         closest_pairs_info = []
 
@@ -1195,7 +1306,9 @@ class PairwiseAnalysis:
             # Intra-cluster distances
             intra_cluster_indices = np.where(labels == label)[0]
             intra_distances = pairwise_distances[i, intra_cluster_indices]
-            intra_distances[intra_cluster_indices == i] = np.inf  # Exclude distance to itself
+            intra_distances[
+                intra_cluster_indices == i
+            ] = np.inf  # Exclude distance to itself
 
             # Inter-cluster distances
             inter_cluster_indices = np.where(labels != label)[0]
@@ -1206,35 +1319,54 @@ class PairwiseAnalysis:
                 closest_intra_idx = intra_cluster_indices[np.argmin(intra_distances)]
                 closest_intra_distance = np.min(intra_distances)
 
-                closest_pairs_info.append({
-                    'response': self.df.iloc[i]['response'],
-                    'response_label': label,
-                    'closest_response': self.df.iloc[closest_intra_idx]['response'],
-                    'closest_label': self.df.iloc[closest_intra_idx][self.label_col],
-                    'distance': closest_intra_distance,
-                    'type': 'Intra-cluster'
-                })
+                closest_pairs_info.append(
+                    {
+                        "response": self.df.iloc[i]["response"],
+                        "response_label": label,
+                        "closest_response": self.df.iloc[closest_intra_idx]["response"],
+                        "closest_label": self.df.iloc[closest_intra_idx][
+                            self.label_col
+                        ],
+                        "distance": closest_intra_distance,
+                        "type": "Intra-cluster",
+                    }
+                )
 
             # Find the closest inter-cluster response
             if len(inter_distances) > 0:
                 closest_inter_idx = inter_cluster_indices[np.argmin(inter_distances)]
                 closest_inter_distance = np.min(inter_distances)
 
-                closest_pairs_info.append({
-                    'response': self.df.iloc[i]['response'],
-                    'response_label': label,
-                    'closest_response': self.df.iloc[closest_inter_idx]['response'],
-                    'closest_label': self.df.iloc[closest_inter_idx][self.label_col],
-                    'distance': closest_inter_distance,
-                    'type': 'Inter-cluster'
-                })
+                closest_pairs_info.append(
+                    {
+                        "response": self.df.iloc[i]["response"],
+                        "response_label": label,
+                        "closest_response": self.df.iloc[closest_inter_idx]["response"],
+                        "closest_label": self.df.iloc[closest_inter_idx][
+                            self.label_col
+                        ],
+                        "distance": closest_inter_distance,
+                        "type": "Inter-cluster",
+                    }
+                )
 
         return pd.DataFrame(closest_pairs_info)
 
 
-
 class OpenEndedTextAnalysisPipeline:
-    def __init__(self, prompts, models_dict, instructions, temperature, stability_criteria, stability_threshold, similarity_calculator, perturbation_model, provider, num_perturbations=10):
+    def __init__(
+        self,
+        prompts,
+        models_dict,
+        instructions,
+        temperature,
+        stability_criteria,
+        stability_threshold,
+        similarity_calculator,
+        perturbation_model,
+        provider,
+        num_perturbations=10,
+    ):
         """
         Initialize the OpenEndedTextAnalysisPipeline class.
 
@@ -1268,17 +1400,25 @@ class OpenEndedTextAnalysisPipeline:
         Returns:
             pd.DataFrame: DataFrame containing the generated responses.
         """
-        perturbation_generator = PerturbationGenerator(self.perturbation_model, self.provider, self.num_perturbations)
-        perturbations_dict = perturbation_generator.get_perturbations_for_all_prompts(self.prompts)
+        perturbation_generator = PerturbationGenerator(
+            self.perturbation_model, self.provider, self.num_perturbations
+        )
+        perturbations_dict = perturbation_generator.get_perturbations_for_all_prompts(
+            self.prompts
+        )
 
         all_responses = []
         for model, model_provider in self.models_dict.items():
             for prompt in self.prompts:
-                responses = self.generate_responses_for_prompt(model, model_provider, prompt, perturbations_dict)
+                responses = self.generate_responses_for_prompt(
+                    model, model_provider, prompt, perturbations_dict
+                )
                 all_responses.extend(responses)
         return pd.DataFrame(all_responses)
 
-    def generate_responses_for_prompt(self, model, provider, prompt, perturbations_dict):
+    def generate_responses_for_prompt(
+        self, model, provider, prompt, perturbations_dict
+    ):
         """
         Generates responses for a single prompt.
 
@@ -1298,13 +1438,29 @@ class OpenEndedTextAnalysisPipeline:
 
         for run_number in range(self.stability_threshold):
             actual_prompt = random.choice(perturbed_prompts)
-            temp_value = random.uniform(0.0, 1.0) if self.temperature == "variable" else self.temperature
-            response_content = LLMUtility.call_model(model, [{"role": "user", "content": f"{self.instructions} {actual_prompt}"}], provider, temp_value)['choices'][0]['message']['content']
+            temp_value = (
+                random.uniform(0.0, 1.0)
+                if self.temperature == "variable"
+                else self.temperature
+            )
+            response_content = LLMUtility.call_model(
+                model,
+                [{"role": "user", "content": f"{self.instructions} {actual_prompt}"}],
+                provider,
+                temp_value,
+            )["choices"][0]["message"]["content"]
 
-            current_embedding = Utilities.get_response_embedding(response_content, self.similarity_calculator)
+            current_embedding = Utilities.get_response_embedding(
+                response_content, self.similarity_calculator
+            )
 
             if previous_embeddings:
-                similarities = [self.similarity_calculator.calculate_similarity(embed, current_embedding) for embed in previous_embeddings]
+                similarities = [
+                    self.similarity_calculator.calculate_similarity(
+                        embed, current_embedding
+                    )
+                    for embed in previous_embeddings
+                ]
                 max_similarity = max(similarities) if similarities else 0
                 if max_similarity >= self.stability_criteria:
                     stable_runs += 1
@@ -1318,16 +1474,18 @@ class OpenEndedTextAnalysisPipeline:
 
             previous_embeddings.append(current_embedding)
 
-            responses.append({
-                'model': model, 
-                'original_prompt': prompt, 
-                'actual_prompt': actual_prompt, 
-                'response': response_content, 
-                'temperature': temp_value, 
-                'run_number': run_number + 1,
-                'similarity': max_similarity,
-                'ResponseEmbedding': current_embedding
-            })
+            responses.append(
+                {
+                    "model": model,
+                    "original_prompt": prompt,
+                    "actual_prompt": actual_prompt,
+                    "response": response_content,
+                    "temperature": temp_value,
+                    "run_number": run_number + 1,
+                    "similarity": max_similarity,
+                    "ResponseEmbedding": current_embedding,
+                }
+            )
 
         return responses
 
@@ -1343,10 +1501,16 @@ class OpenEndedTextAnalysisPipeline:
         """
         # Apply unique words and cumulative metrics
         unique_word_analysis = UniqueWordAnalysis(df_responses)
-        df_responses['UniqueWords'] = unique_word_analysis.add_unique_words_column()
-        df_responses['CumulativeUniqueWords'] = unique_word_analysis.calculate_cumulative_unique_words_by_group()
-        df_responses['NewUniqueWords'] = unique_word_analysis.calculate_new_unique_words_by_group()
-        df_responses['CumulativeWordPercentage'] = unique_word_analysis.calculate_cumulative_word_percentages()
+        df_responses["UniqueWords"] = unique_word_analysis.add_unique_words_column()
+        df_responses[
+            "CumulativeUniqueWords"
+        ] = unique_word_analysis.calculate_cumulative_unique_words_by_group()
+        df_responses[
+            "NewUniqueWords"
+        ] = unique_word_analysis.calculate_new_unique_words_by_group()
+        df_responses[
+            "CumulativeWordPercentage"
+        ] = unique_word_analysis.calculate_cumulative_word_percentages()
 
         return df_responses
 
