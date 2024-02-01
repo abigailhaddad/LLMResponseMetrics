@@ -710,11 +710,10 @@ class ClosedEndedTextAnalysisPipeline:
         """
         df = self.data_loader.load_data()
         all_prompts = df["prompt"].unique()
-        perturbations_dict = (
-            self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
-        )
+        self.perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)  # Store perturbations
+
         df_responses = self.response_generator.process_prompts_with_realtime_evaluation(
-            df, perturbations_dict
+            df, self.perturbations_dict
         )
         del_file()
         return df_responses
