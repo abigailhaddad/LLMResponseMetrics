@@ -710,11 +710,10 @@ class ClosedEndedTextAnalysisPipeline:
         """
         df = self.data_loader.load_data()
         all_prompts = df["prompt"].unique()
-        perturbations_dict = (
-            self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)
-        )
+        self.perturbations_dict = self.perturbation_generator.get_perturbations_for_all_prompts(all_prompts)  # Store perturbations
+
         df_responses = self.response_generator.process_prompts_with_realtime_evaluation(
-            df, perturbations_dict
+            df, self.perturbations_dict
         )
         del_file()
         return df_responses
@@ -1384,16 +1383,10 @@ class OpenEndedTextAnalysisPipeline:
         self.num_perturbations = num_perturbations
 
     def process_all_prompts_models(self):
-        """
-        Processes all prompts and generates responses.
-
-        Returns:
-            pd.DataFrame: DataFrame containing the generated responses.
-        """
         perturbation_generator = PerturbationGenerator(
             self.perturbation_model, self.provider, self.num_perturbations
         )
-        perturbations_dict = perturbation_generator.get_perturbations_for_all_prompts(
+        self.perturbations_dict = perturbation_generator.get_perturbations_for_all_prompts(
             self.prompts
         )
 
@@ -1401,10 +1394,12 @@ class OpenEndedTextAnalysisPipeline:
         for model, model_provider in self.models_dict.items():
             for prompt in self.prompts:
                 responses = self.generate_responses_for_prompt(
-                    model, model_provider, prompt, perturbations_dict
+                    model, model_provider, prompt, self.perturbations_dict
                 )
                 all_responses.extend(responses)
+
         return pd.DataFrame(all_responses)
+
 
     def generate_responses_for_prompt(
         self, model, provider, prompt, perturbations_dict
