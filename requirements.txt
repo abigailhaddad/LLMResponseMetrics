@@ -1,6 +1,7 @@
 pandas==2.2.0
 numpy==1.26.3
-litellm==1.20.6
+litellm==1.14.4
+openai==1.109.1
 transformers==4.37.2
 torch==2.2.0
 scipy==1.11.4
