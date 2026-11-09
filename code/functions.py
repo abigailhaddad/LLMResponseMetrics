@@ -805,11 +805,11 @@ class UniqueWordAnalysis:
 
         for _, group in self.df.groupby(["model", "original_prompt"]):
             seen_words = set()
-            new_words_series[group.index] = group["UniqueWords"].apply(
-                lambda words_set: words_set - seen_words
-                or seen_words.update(words_set)
-                or words_set - seen_words
-            )
+            new_words = []
+            for words_set in group["UniqueWords"]:
+                new_words.append(words_set - seen_words)
+                seen_words.update(words_set)
+            new_words_series[group.index] = pd.Series(new_words, index=group.index)
 
         return new_words_series
 
