@@ -176,6 +176,50 @@ class TestUniqueWordAnalysis(unittest.TestCase):
         )
 
 
+class _FixedSimilarity:
+    def calculate_embeddings_and_scores(self, target, response):
+        return [0.0], 0.5
+
+
+class _FixedKeywords:
+    def calculate_match_percent(self, keywords, response):
+        return 0.2
+
+
+class _FixedRating:
+    def __init__(self, values):
+        self.values = iter(values)
+
+    def rate_response(self, row):
+        return next(self.values)
+
+
+class TestModelResponseGeneratorRuns(unittest.TestCase):
+    def _run(self, ratings):
+        generator = ModelResponseGenerator(
+            models_dict={"A": "p", "B": "p"},
+            instructions="",
+            max_runs=6,
+            stability_threshold=2,
+            similarity_calculator=_FixedSimilarity(),
+            keyword_match_calculator=_FixedKeywords(),
+            llm_rating_calculator=_FixedRating(ratings),
+            temperature=0.0,
+        )
+        df = pd.DataFrame({"prompt": ["q"], "target_answer": ["t"], "keywords": [["k"]]})
+        reply = {"choices": [{"message": {"content": "r"}}]}
+        with patch("code.functions.LLMUtility.call_model", return_value=reply):
+            return generator.process_prompts_with_realtime_evaluation(df, {})
+
+    def test_each_model_gets_its_own_stability_window(self):
+        result = self._run([0.5] * 20)
+        self.assertEqual(result.groupby("model").size().to_dict(), {"A": 2, "B": 2})
+
+    def test_unparseable_rating_does_not_crash(self):
+        result = self._run([0.5, None, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
+        self.assertEqual(len(result), 4)
+
+
 # Run the tests if the script is executed directly
 if __name__ == "__main__":
     unittest.main()
