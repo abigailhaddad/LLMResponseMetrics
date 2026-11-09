@@ -5,6 +5,7 @@ from code.functions import (
     PerturbationGenerator,
     ModelResponseGenerator,
     LLMRatingCalculator,
+    EmbeddingAnalysis,
     UniqueWordAnalysis,
 )  # Custom module import
 import unittest
@@ -218,6 +219,22 @@ class TestModelResponseGeneratorRuns(unittest.TestCase):
     def test_unparseable_rating_does_not_crash(self):
         result = self._run([0.5, None, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
         self.assertEqual(len(result), 4)
+
+
+class TestEmbeddingAnalysis(unittest.TestCase):
+    def test_duplicate_responses_have_zero_closest_intra_distance(self):
+        df = pd.DataFrame(
+            {
+                "response": ["same", "same", "other"],
+                "emb": [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+                "label": [1, 1, 2],
+            }
+        )
+        result = EmbeddingAnalysis(df, "emb").find_closest_distances_per_response("label")
+        self.assertAlmostEqual(result.loc[0, "closest_intra_distance"], 0.0)
+        self.assertAlmostEqual(result.loc[1, "closest_intra_distance"], 0.0)
+        # a response alone in its cluster has no intra-cluster neighbour
+        self.assertEqual(result.loc[2, "closest_intra_distance"], float("inf"))
 
 
 # Run the tests if the script is executed directly

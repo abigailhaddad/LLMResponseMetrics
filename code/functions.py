@@ -1140,8 +1140,12 @@ class EmbeddingAnalysis:
 
         for i, label in enumerate(labels):
             # Calculate intra- and inter-cluster distances
-            intra_distances = pairwise_distances[i][labels == label]
-            intra_distances[intra_distances == 0] = np.inf  # Exclude distance to itself
+            same_label = labels == label
+            intra_distances = pairwise_distances[i][same_label]
+            # Exclude only the response's own position. Masking every zero
+            # distance also dropped identical (duplicate) responses, whose true
+            # closest intra-cluster distance is 0.
+            intra_distances[np.flatnonzero(same_label) == i] = np.inf
             inter_distances = pairwise_distances[i][labels != label]
 
             # Find closest distances
