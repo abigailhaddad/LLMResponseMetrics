@@ -5,6 +5,7 @@ from code.functions import (
     PerturbationGenerator,
     ModelResponseGenerator,
     LLMRatingCalculator,
+    UniqueWordAnalysis,
 )  # Custom module import
 import unittest
 from unittest.mock import patch, mock_open
@@ -156,6 +157,23 @@ class TestLLMRatingCalculator(unittest.TestCase):
         row = {"target_answer": "some answer", "response": "some response"}
         rating = calculator.rate_response(row)
         self.assertEqual(rating, 0.7)
+
+
+class TestUniqueWordAnalysis(unittest.TestCase):
+    def test_new_unique_words_excludes_words_seen_in_earlier_runs(self):
+        df = pd.DataFrame(
+            {
+                "model": ["m"] * 3,
+                "original_prompt": ["p"] * 3,
+                "response": ["a b c", "a b d", "a b c d e"],
+            }
+        )
+        analysis = UniqueWordAnalysis(df)
+        df["UniqueWords"] = analysis.add_unique_words_column()
+        new_words = analysis.calculate_new_unique_words_by_group()
+        self.assertEqual(
+            [sorted(words) for words in new_words], [["a", "b", "c"], ["d"], ["e"]]
+        )
 
 
 class _FixedSimilarity:
