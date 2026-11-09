@@ -293,19 +293,19 @@ class ModelResponseGenerator:
     def process_prompts_with_realtime_evaluation(self, df, perturbations_dict):
         all_results = []
         for index, row in df.iterrows():
-            # Reset stability scores for each new prompt
-            self.stability_scores = {
-                "similarity_score": [],
-                "keyword_score": [],
-                "llm_rating": [],
-            }
-
             prompt = row["prompt"]
             target_answer = row.get("target_answer", None)
             keywords = row.get("keywords", None)
             perturbations = perturbations_dict.get(prompt, [prompt])
 
             for model, provider in self.models_dict.items():
+                # Reset stability scores for each prompt AND model, so one model's
+                # running maxima cannot end another model's runs early.
+                self.stability_scores = {
+                    "similarity_score": [],
+                    "keyword_score": [],
+                    "llm_rating": [],
+                }
                 for run_number in range(self.max_runs):
                     actual_prompt = random.choice(perturbations)
                     temp_value = (
@@ -354,7 +354,9 @@ class ModelResponseGenerator:
                     )
                     self.stability_scores["llm_rating"].append(
                         max(
-                            llm_rating,
+                            # An unparseable rating comes back as None; count it as 0
+                            # for stability tracking instead of crashing max().
+                            llm_rating if llm_rating is not None else 0,
                             self.stability_scores["llm_rating"][-1]
                             if self.stability_scores["llm_rating"]
                             else 0,
